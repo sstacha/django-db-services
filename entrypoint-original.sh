@@ -5,16 +5,16 @@ set -e
 function fix_linux_internal_host() {
 DOCKER_INTERNAL_HOST="host.docker.internal"
 if ! grep $DOCKER_INTERNAL_HOST /etc/hosts > /dev/null ; then
-DOCKER_INTERNAL_IP="$(ip route | grep -E '(default|docker0)' | grep -Eo '([0-9]+\.){3}[0-9]+' | tail -1)"
+DOCKER_INTERNAL_IP='/sbin/ip route | awk '/default/ { print $3 }' | awk '!seen[$0]++'
 echo -e "$DOCKER_INTERNAL_IP\t$DOCKER_INTERNAL_HOST" | tee -a /etc/hosts > /dev/null
 echo "Added $DOCKER_INTERNAL_HOST to hosts /etc/hosts"
 fi
 }
 
-echo "$(cat /etc/hosts)"
-echo "param 1: $1"
-
-
-fix_linux_internal_host
-echo "running command"
-exec "$@"
+if [ "$1" = 'run_linux' ]; then
+  fix_linux_internal_host
+  echo "launching runserver"
+  python manage.py runserver 0.0.0.0:8000
+else
+  exec "$@"
+fi

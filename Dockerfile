@@ -7,12 +7,15 @@ RUN apt-get update \
 
 WORKDIR /usr/src/app
 COPY requirements.txt ./
+COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN ln -s /usr/local/bin/docker-entrypoint.sh / # backwards compat
 RUN pip install -r requirements.txt
 COPY . .
 
 EXPOSE 8000
+# CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
+ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
-# ENTRYPOINT ["entrypoint.sh"]
 
 # BUILD
 # docker build -t django-db-services .

@@ -90,7 +90,7 @@ WSGI_APPLICATION = 'ds.wsgi.application'
 # https://docs.djangoproject.com/en/3.0/ref/settings/#databases
 # localhost can be 127.0.0.1 on our laptops but needs to be host.docker.internal to resolve to the host under docker
 # NOTE: environment should only get set if docker compose or we set on our laptop env to localhost
-localhost = os.environ.get('LOCALHOST', '127.0.0.1')
+localhost = os.environ.get('LOCALHOST', 'localhost')
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
@@ -102,15 +102,15 @@ DATABASES = {
 #       and mount it into the container
 with open('data/endpoint_databases_dict.txt', 'r') as f:
     s = f.read()
-    print(f's: {s}')
+    # print(f's: {s}')
     ENDPOINT_DATABASES = eval(s)
     if ENDPOINT_DATABASES:
         DATABASES.update(ENDPOINT_DATABASES)
 
-print(f'endpoint databases: {ENDPOINT_DATABASES}')
-print('')
-print(f'DATABASES: {DATABASES}')
-print('')
+# print(f'endpoint databases: {ENDPOINT_DATABASES}')
+# print('')
+# print(f'DATABASES: {DATABASES}')
+# print('')
 
 # Password validation
 # https://docs.djangoproject.com/en/3.0/ref/settings/#auth-password-validators
@@ -200,7 +200,7 @@ for k, v in os.environ.items():
     if k.startswith("UWEB_"):
         attr_key = k[5:]
         if attr_key:
-            print (f"env: setting {attr_key} to [{str(v)}]")
+            print(f"env: setting {attr_key} to [{str(v)}]")
             setattr(this_module, attr_key, v)
 
 
