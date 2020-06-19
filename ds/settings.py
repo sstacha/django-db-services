@@ -36,7 +36,8 @@ SECRET_KEY = '+^=p!b51_v^7h!^@11_wwmvhxpj*s^ti)n5(=jouwt230u4j!z'
 DEBUG = True
 
 env_hosts = os.environ.get('ALLOWED_HOSTS', '*')
-ALLOWED_HOSTS = [env_hosts]
+ALLOWED_HOSTS = ['*']
+print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
