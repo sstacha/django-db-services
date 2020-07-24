@@ -1,16 +1,220 @@
+# NOTE: different drivers do callable statements differently; basing this code on mysqlclient since
+#   I can't get the mysql-connector-python to tie into django 3.0.8 properly.
+#   <sigh> I have always had trouble with Oracles driver; a shame really since I like the syntax better
+#   and it is pure python; maybe try again later
+#
+# SEE: https://stackoverflow.com/questions/15320265/cannot-return-results-from-stored-procedure-using-python-cursor
+#   about mid way down the page for usage differences.
+#
 from django.db.utils import ConnectionDoesNotExist, OperationalError
-from django.http import Http404, JsonResponse
+from django.http import Http404, JsonResponse, HttpResponseBadRequest
 from django.db import connections
 from django.conf import settings
 import logging
 import re
 
 from .models import Endpoint
-from .utils import TermColor, dictfetchall, dictfetchstoredresults
+from .utils import TermColor, dictfetchall, dictfetchstoredresults, dictfetchstoredparameters, get_key_by_idx
 
 # todo: figure out how to handle types if needed (<section_id:int>)
 log = logging.getLogger("ds_app")
 valid_methods = ["GET", "POST", "PUT", "DELETE"]
+
+
+class SqlParameter(object):
+    """
+    Instead of just the arg name we need the position to know for optional arguments
+    """
+    def __init__(self, name, value=None, positions=(-1, -1)):
+        self.name = name
+        self.value = value
+        self.start = positions[0]
+        self.end = positions[1]
+
+    def __str__(self):
+        return self.name
+
+
+class MethodParameters(object):
+    """
+    Encapsulates the parameters passed into the url.
+    """
+    def __init__(self, param_list, **kwargs):
+        # data structure will be a dict of keys with array of values
+        self.endpoint_path = None
+        self.parameters = {}
+        # start by placing all kwargs that is not endpoint_path into kwvars these are path parameters defined in
+        # the urls.py
+        for arg, value in kwargs.items():
+            # log.debug(f'kwargs -> arg: {arg} value: {value}')
+            if arg == 'endpoint_path':
+                self.endpoint_path = value
+            else:
+                self.parameters[arg] = value
+        for key, value in param_list:
+            # print(f'param -> key: {key} value: {value}')
+            self.parameters[key] = value
+
+    def __str__(self):
+        return f'parameters: {self.parameters}'
+
+
+class ParsedSql(object):
+    """
+    Encapsulates the state after parsing the sql
+    """
+    def __init__(self, sql, method_parameters):
+        self.original_sql = sql
+        self.uncommented_sql = self.strip_comments()
+        self.params = []
+        self._callable = False
+        self.callable_name = ""
+        self.callable_args = []
+        self.init_errors = []
+        self.statement = self.parse(method_parameters)
+
+    def parse(self, method_parameters):
+        """
+        parses the original sql doing string replacements and building argument lists
+        """
+        sql = self.uncommented_sql
+        # check for ? (ordinal) and add named arguments by index then just string replace
+        sql = self.parse_ordinal_args(sql, method_parameters)
+        # check for named parameters and add named arguments while doing string replacements
+        sql = self.parse_named_args(sql)
+        # next check for optional text and strip if we don't have a param
+        sql = self.strip_optional_args(sql, method_parameters)
+        # last set our values for our arguments by looking them up from passed parameters
+        for param in self.params:
+            try:
+                param.value = method_parameters.parameters[param.name]
+                # self.values.append(method_parameters.parameters[param])
+            except KeyError:
+                self.init_errors.append(f"Missing required parameter [{param}]\n")
+        # if this is a callable procedure since called differently
+        # mysqlclient uses the procedure name and a list of args in callproc method
+        self.parse_callproc(sql)
+        return sql
+
+    def strip_comments(self):
+        sql = ""
+        lines = self.original_sql.split('\n')
+        for line in lines:
+            if line.strip().startswith("--"):
+                continue
+            sql += line + '\n'
+        return sql
+
+    def parse_ordinal_args(self, sql, params):
+        pattern = re.compile(r'(\?)')
+        new_sql = ""
+        last_match = 0
+        ordinal_index = 0
+        for match in re.finditer(pattern, sql):
+            # print(match.group(1))
+            try:
+                param = SqlParameter(get_key_by_idx(params.parameters, ordinal_index), positions=match.span())
+            except IndexError:
+                param = SqlParameter(f"p{ordinal_index}", positions=match.span())
+            self.params.append(param)
+            ordinal_index += 1
+            new_sql += sql[last_match:match.start()]
+            new_sql += '%s'
+            last_match = match.end()
+        new_sql += sql[last_match:]
+        # print(f'parsed sql: {new_sql}')
+        return new_sql
+
+    def parse_named_args(self, sql):
+        pattern = re.compile(r'<(\S+)>')
+        new_sql = ""
+        last_match = 0
+        for match in re.finditer(pattern, sql):
+            # print(match.group(1))
+            self.params.append(SqlParameter(match.group(1), positions=match.span()))
+            new_sql += sql[last_match:match.start()]
+            new_sql += '%s'
+            last_match = match.end()
+        new_sql += sql[last_match:]
+        # print(f'parsed sql: {new_sql}')
+        return new_sql
+
+    def strip_optional_args(self, sql, passed_parameters):
+        us_pos_start = self.uncommented_sql.find('[')
+        us_pos_end = self.uncommented_sql.rfind(']')
+        s_pos_start = sql.find('[')
+        s_pos_end = sql.find(']')
+        missing = False
+        if us_pos_start > -1 and us_pos_end > -1:
+            for param in self.params:
+                if param.start >= us_pos_start and param.end <= us_pos_end:
+                    if param.name not in passed_parameters.parameters:
+                        missing = True
+                    break
+        if missing:
+            # remove any parameters within range (otherwise we will get the param not passed error)
+            for param in reversed(self.params):
+                if param.start >= us_pos_start and param.end <= us_pos_end:
+                    self.params.remove(param)
+            # strip the whole block from the sql
+            return sql[0:s_pos_start] + sql[s_pos_end + 1:]
+        else:
+            # strip only the open/close bracket tag
+            return sql[0:s_pos_start] + sql[s_pos_start + 1:s_pos_end] + sql [s_pos_end + 1:]
+
+    def parse_callproc(self, sql):
+        upper_sql = sql.upper()
+        pos = upper_sql.find("CALLPROC")
+        if pos > -1:
+            pos += len("CALLPROC")
+            pos_argstart = upper_sql.find("(", pos)
+            pos_argend = upper_sql.rfind(")", pos)
+            if pos > -1 and pos_argstart > -1 and pos_argend > -1:
+                self._callable = True
+                self.callable_name = sql[pos:pos_argstart].strip()
+                self.callable_args = sql[pos_argstart + 1: pos_argend].split(",")
+                # substitute any callable args '%s' with the next value
+                value_idx = 0
+                for arg_idx in range(len(self.callable_args)):
+                    if self.callable_args[arg_idx] == "%s":
+                        if len(self.params) - 1 >= arg_idx:
+                            self.callable_args[arg_idx] = self.params[value_idx].value
+                            value_idx += 1
+            # print(f"callable_name:\n{self.callable_name}")
+            # print(f"callable_args:\n{self.callable_args}")
+
+    def is_update(self):
+        pos_update = self.statement.lower().find("update")
+        if pos_update <= -1:
+            return False
+        pos_select = self.statement.lower().find("select")
+        if pos_select > -1 and pos_select < pos_update:
+            return False
+        return True
+
+    def is_callable(self):
+        return self._callable
+
+    def parameter_names(self):
+        """
+        returns the sql parameter names in a list for use in sql calls
+        """
+        name_list = []
+        for param in self.params:
+            name_list.append(param.name)
+        return name_list
+
+    def parameter_values(self):
+        """
+        returns the sql parameter values in a list for use in sql calls
+        """
+        value_list = []
+        for param in self.params:
+            value_list.append(param.value)
+        return value_list
+
+    def __str__(self):
+        return self.statement
 
 
 class ExecutableStatement(object):
@@ -19,141 +223,48 @@ class ExecutableStatement(object):
     supports sql, parameterized sql and callable statements
     returns array of dict results or a wrappered array of dict results with other parameters
     debug can be passed as kwarg to add debug properties to the result set
+    NOTE: sql can be named args or ?
     """
     def __init__(self, connection_name, sql, param_list, **kwargs):
         self.connection_name = connection_name
-        self.original_sql = sql
-        self.sql = sql
-        self.param_list = param_list
-        self.kwargs = kwargs
-        # initialize our parameter values with the kwargs values
-        # NOTE: these will be named but the sql could be ordered ? or named <id>
-        self.kwvars = {}
-        self.ordinal_values = self.get_ordinal_values(**kwargs)
-        self.is_callable = False
-        self.is_update = False
+        self.method_parameters = MethodParameters(param_list, **kwargs)
+        self.sql = ParsedSql(sql, self.method_parameters)
         self.updated_recs = 0
         self.results = []
         self.wrappered_results = {}
 
-    def get_ordinal_values(self, **kwargs):
-        values = []
-        sql = ""
-        # strip all comments
-        lines = self.original_sql.split('\n')
-        for line in lines:
-            if line.strip().startswith("--"):
-                continue
-            sql += line + "\n"
-        # check for ? (ordinal) if found check the number of kwargs is >= number of ?
-        parts = sql.split("?")
-        param_count = len(parts) - 1
-        if param_count:
-            # start by placing all kwargs that is not endpoint_path into kwvars these are path parameters defined in
-            # the urls.py
-            # NOTE: since we don't have named parameters just questionmarks we must assume every arg except
-            #   endpoint_path is done by the definition and we need it
-            for arg, value in kwargs.items():
-                # log.debug(f'kwargs -> arg: {arg} value: {value}')
-                if arg != 'endpoint_path':
-                    self.kwvars[arg] = value
-            # log.debug(f'kwvars: {self.kwvars}')
-            # add the kwvars to our ordinal value list
-            for arg, value in self.kwvars.items():
-                # print(f'kwvars -> arg: {arg} value: {value}')
-                values.append(value)
-                if len(values) == param_count:
-                    break
-            # replace any ? with %s (needed for python lib to execute correctly)
-            self.sql = sql.replace("?", "%s")
-            # add any get/post values in order until we get the max number of ordinal value replacements needed
-            if len(values) < param_count:
-                # add the remaining kwvars/values with GET/POST params that are passed as param_list
-                for key, value in self.param_list:
-                    # print(f'param -> key: {key} value: {value}')
-                    self.kwvars[key] = value
-                    values.append(value)
-                    if len(values) == param_count:
-                        break
-            log.debug(f"kwvars: {self.kwvars}")
-            log.debug(f"ordinal values: {values}")
-            # if we don't have the right number of params raise exception since sql will fail anyway
-            if len(values) != param_count:
-                err_msg = f"Expected [{param_count}] values in sql but only found [{len(values)}]"
-                err_msg += f"original_sql: {self.original_sql}\n"
-                err_msg += f"sql: {self.sql}\n"
-                err_msg += f"kwvars: {self.kwvars}\n"
-                raise Exception(err_msg)
-        else:
-            # by value is a bit different we want to loop through each variable and set the values by looking for
-            #   the value by name in both kwargs and params.  If no value matches we error.  We get the values
-            #   list by getting the list of values from the kwvars which should be ordered.
-            new_string = ""
-            pattern = re.compile(r'<(\S+)>')
-            last_match = 0
-            for match in re.finditer(pattern, sql):
-                # print(match.group(1))
-                self.kwvars[match.group(1)] = None
-                new_string += sql[last_match:match.start()]
-                new_string += '%s'
-                last_match = match.end()
-            new_string += sql[last_match:]
-            # print(f'new string: {new_string}')
-            self.sql = new_string
-            # print(f'sql: {self.sql}')
-            # print(f'kwvars: {self.kwvars}')
-            # for each kwvar defined in the statement look for the value and throw an exception if not found somewhere
-            for key in self.kwvars:
-                # print(key)
-                # try to get the kwvars item for this key
-                value = kwargs.get(key)
-                if not value:
-                    value = self.param_list.get(key)
-                self.kwvars[key] = value
-            log.debug(f'kwvars: {self.kwvars}')
-            # todo: add code to look and adjust sql for optional parameters instead of just raising the error
-            values = list(self.kwvars.values())
-            log.debug(f'ordinal values: {values}')
-            for key, value in self.kwvars.items():
-                if value is None:
-                    err_msg = f"Expected value for [{key}] but did not find in path or parameter\n"
-                    err_msg += f"original_sql: {self.original_sql}\n"
-                    err_msg += f"sql: {self.sql}\n"
-                    err_msg += f"kwvars: {self.kwvars}\n"
-                    raise Exception(err_msg)
-        return values
-
     def execute(self):
         log.debug(f'trying to open connection [{self.connection_name}]')
         with connections[self.connection_name].cursor() as cursor:
-            if self.is_callable:
-                if self.is_update:
-                    self.wrappered_results['result_args'] = cursor.callproc(self.sql, self.ordinal_values)
+            try:
+                if self.sql.is_callable():
+                    cursor.callproc(self.sql.callable_name, self.sql.callable_args)
+                    self.updated_recs = cursor.rowcount
+                    self.wrappered_results['parameters'] = dictfetchstoredparameters(cursor, self.sql.callable_name, self.sql.callable_args)
+                    self.results = dictfetchstoredresults(cursor)
+                    self.wrappered_results['resultsets'] = self.results
                 else:
-                    self.wrappered_results['result_args'] = cursor.callproc(self.sql)
-                self.results = dictfetchstoredresults(cursor)
-                self.wrappered_results['results'] = self.results
-                self.updated_recs = len(self.results)
-            else:
-                try:
-                    if self.ordinal_values:
-                        cursor.execute(self.sql, self.ordinal_values)
+                    if self.sql.params:
+                        cursor.execute(self.sql.statement, self.sql.parameter_values())
                     else:
-                        cursor.execute(self.sql)
+                        cursor.execute(self.sql.statement)
                     self.results = dictfetchall(cursor)
                     self.updated_recs = cursor.rowcount
-                except OperationalError as oe:
-                    log.debug(oe)
+            except OperationalError as oe:
+                log.debug(oe)
 
-    def get_json_repsonse(self):
+    def get_json_response(self):
         # todo: add logic for wrappering with debug properties
-        if self.is_update:
-            return JsonResponse(f'{{"updated":{self.updated_recs}}}')
+        if self.sql.is_callable():
+            # add to wrappered_results if debug later
+            if self.sql.is_update():
+                self.wrappered_results['updated'] = self.updated_recs
+            return JsonResponse(self.wrappered_results, safe=False)
         else:
-            if self.is_callable:
-                return JsonResponse(self.wrappered_results, safe=False)
+            # change to wrappered_results if debug later
+            if self.sql.is_update():
+                return JsonResponse(f'{{"updated":{self.updated_recs}}}')
             else:
-                # change to wrappered_results if debug later
                 return JsonResponse(self.results, safe=False)
 
 
@@ -205,12 +316,16 @@ def process_endpoint(request, *args, **kwargs):
         sql = getattr(endpoint, property_name)
         log.debug(f"sql: {sql}")
         statement = ExecutableStatement(_connection_name, sql, _param_list, **kwargs)
-        log.debug(f'statement.sql: {str(statement.sql).strip()}')
-        log.debug(f'statement.ordinal_values: {statement.ordinal_values}')
+        log.debug(f'statement parsed sql: {str(statement.sql).strip()}')
+        log.debug(f'statement parameters: {str(statement.sql.parameter_names())}')
+        log.debug(f'statement values: {str(statement.sql.parameter_values())}')
+        log.debug(f'passed parameters: {statement.method_parameters.parameters}')
+        if statement.sql.init_errors:
+            return HttpResponseBadRequest(statement.sql.init_errors)
         statement.execute()
         log.info(
             TermColor.BOLD + TermColor.UNDERLINE + '------- endpoint: ' + _endpoint_path + ' --------' + TermColor.ENDC)
-        return statement.get_json_repsonse()
+        return statement.get_json_response()
 
     except Endpoint.DoesNotExist as dneerr:
         _msg = f'ERROR: we tried to get endpoint for [{_endpoint_path}] but it was not found!\n{dneerr}'
@@ -226,34 +341,3 @@ def process_endpoint(request, *args, **kwargs):
             raise Http404(_msg)
         else:
             raise Http404("Unable to connect to the database")
-
-
-# HOW TO IMPLEMENT PREPARED STATEMENT
-    #     if not self.name in self.get_prepared().keys()
-    #        # Statement will be prepared once per session.
-    #        self.prepare()
-    #
-    #     SQL = "EXECUTE %s " % self.name
-    #
-    #     if self.vars:
-    #         missing_vars = set(self.vars) - set(kwvars)
-    #         if missing_vars:
-    #             raise TypeError("Prepared Statement %s requires variables: %s" % (
-    #                                 self.name, ", ".join(missing_variables) ) )
-    #
-    #         param_list = [ var + "=%s" for var in self.vars ]
-    #         param_vals = [ kwvars[var] for var in self.vars ]
-    #
-    #         SQL += "USING " + ", ".join( param_list )
-    #
-    #         return self.__executeQuery(SQL, *param_vals)
-    #     else:
-    #         return self.__executeQuery(SQL)
-    #
-    # def __executeQuery(self,query, *args):
-    #     cursor = connection.cursor()
-    #     if args:
-    #         cursor.execute(query,args)
-    #     else:
-    #         cursor.execute(query)
-    #     return cursor

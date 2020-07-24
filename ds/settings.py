@@ -36,8 +36,8 @@ SECRET_KEY = '+^=p!b51_v^7h!^@11_wwmvhxpj*s^ti)n5(=jouwt230u4j!z'
 DEBUG = True
 
 env_hosts = os.environ.get('ALLOWED_HOSTS', '*')
-ALLOWED_HOSTS = ['*']
-print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
+ALLOWED_HOSTS = [env_hosts]
+# print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
@@ -194,19 +194,26 @@ LOGGING = {
     }
 }
 
-# Replace any UWEB_ prefixed environment variables in settings at startup
+# # HTTPS & SECURE cookie settings for django for PCI
+# # NOTE: we don't use but lets set just in case we do in the future
+# SESSION_COOKIE_SECURE = True
+# SESSION_COOKIE_HTTPONLY = True
+# CSRF_COOKIE_SECURE = True
+# CSRF_COOKIE_HTTPONLY = True
+
+# Replace any DOCROOTCMS_ prefixed environment variables in settings at startup
 #   NOTE: used for docker/local machine environment variable loading overrides
 # 	NOTE: expect strings not complex items like below
 this_module = sys.modules[__name__]
 for k, v in os.environ.items():
-    if k.startswith("UWEB_"):
-        attr_key = k[5:]
+    if k.startswith("DOCROOTCMS_"):
+        attr_key = k[len("DOCROOTCMS_"):]
         if attr_key:
             print(f"env: setting {attr_key} to [{str(v)}]")
             setattr(this_module, attr_key, v)
 
-
-
+    # EXAMPLE endpoint_databases_dict.txt (place in data directory)
+    # {
     # 'publications': {
     #     'ENGINE': 'django.db.backends.mysql',
     #     'HOST': localhost,
@@ -260,4 +267,5 @@ for k, v in os.environ.items():
     #     'PORT': '3306',
     #     'USER': 'root',
     #     'PASSWORD': 'root',
+    # }
     # }
