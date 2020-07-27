@@ -144,23 +144,25 @@ class ParsedSql(object):
         us_pos_end = self.uncommented_sql.rfind(']')
         s_pos_start = sql.find('[')
         s_pos_end = sql.find(']')
-        missing = False
+
         if us_pos_start > -1 and us_pos_end > -1:
+            missing = False
             for param in self.params:
                 if param.start >= us_pos_start and param.end <= us_pos_end:
                     if param.name not in passed_parameters.parameters:
                         missing = True
                     break
-        if missing:
-            # remove any parameters within range (otherwise we will get the param not passed error)
-            for param in reversed(self.params):
-                if param.start >= us_pos_start and param.end <= us_pos_end:
-                    self.params.remove(param)
-            # strip the whole block from the sql
-            return sql[0:s_pos_start] + sql[s_pos_end + 1:]
-        else:
-            # strip only the open/close bracket tag
-            return sql[0:s_pos_start] + sql[s_pos_start + 1:s_pos_end] + sql [s_pos_end + 1:]
+            if missing:
+                # remove any parameters within range (otherwise we will get the param not passed error)
+                for param in reversed(self.params):
+                    if param.start >= us_pos_start and param.end <= us_pos_end:
+                        self.params.remove(param)
+                # strip the whole block from the sql
+                return sql[0:s_pos_start] + sql[s_pos_end + 1:]
+            else:
+                # strip only the open/close bracket tag
+                return sql[0:s_pos_start] + sql[s_pos_start + 1:s_pos_end] + sql [s_pos_end + 1:]
+        return sql
 
     def parse_callproc(self, sql):
         upper_sql = sql.upper()

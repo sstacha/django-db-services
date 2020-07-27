@@ -167,6 +167,18 @@ def testcp():
             resultsets.append({'rs' + str(i): dictfetchall(cursor)})
         print(resultsets)
 
+def test_driver():
+    with connections['eva'].cursor() as cursor:
+        # sql = """
+        # select * from events where name = 'booger'
+        # """
+        sql = """
+        SELECT * FROM v_Events_DL
+WHERE name NOT LIKE concat('%', x'22', '%')
+        """
+        cursor.execute(sql)
+        results = dictfetchall(cursor)
+        print(results)
 
 if __name__ == '__main__':
     print('main')
