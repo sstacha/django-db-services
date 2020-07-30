@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 import sys
+from ds_app.utils import is_true_value
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 # default BASE_DIR = PROJECT_DIR
@@ -211,6 +212,10 @@ for k, v in os.environ.items():
         if attr_key:
             print(f"env: setting {attr_key} to [{str(v)}]")
             setattr(this_module, attr_key, v)
+
+# Just in case we read in the DEBUG variable above which is always strings lets convert back to boolean
+if not isinstance(DEBUG, bool):
+    DEBUG = is_true_value(DEBUG)
 
     # EXAMPLE endpoint_databases_dict.txt (place in data directory)
     # {

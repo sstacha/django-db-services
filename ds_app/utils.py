@@ -5,6 +5,7 @@ from importlib import reload
 from django.urls import clear_url_caches
 from django.db import connections
 
+
 class TermColor:
     def __init__(self):
         pass
@@ -17,6 +18,14 @@ class TermColor:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+def is_true_value(value):
+    if value is not None:
+        # note: don't think I need these because they are all truthy and will be caught by if value...
+        if value in ["1", 1, "y", "Y", True, "t", "T", "TRUE", "True", "true", "YES", "Yes", "yes", "ON", "On", "on"]:
+            return True
+    return False
 
 
 # NOTE: reloading the main settings.ROOT_URLCONF will not reload other imported modules!
