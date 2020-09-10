@@ -238,6 +238,9 @@ class ExecutableStatement(object):
     def execute(self):
         log.debug(f'trying to open connection [{self.connection_name}]')
         with connections[self.connection_name].cursor() as cursor:
+            # NOTE: I am not sure why I wrappered everything for this error, however
+            #   it prevents SQL Errors from showing so I need to raise it for now;
+            #   maybe for callable statement?  test this out for both params and results
             try:
                 if self.sql.is_callable():
                     cursor.callproc(self.sql.callable_name, self.sql.callable_args)
@@ -254,6 +257,8 @@ class ExecutableStatement(object):
                     self.updated_recs = cursor.rowcount
             except OperationalError as oe:
                 log.debug(oe)
+                if settings.DEBUG:
+                    raise oe
 
     def get_json_response(self):
         # todo: add logic for wrappering with debug properties
