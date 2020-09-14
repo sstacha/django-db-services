@@ -26,7 +26,7 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # docker run -it --env-file=.env --name django-db-services -p 8000:8000 -v django-db-services-data:/usr/src/app/data django-db-services
 # TO PUSH TO REPO
 # docker tag django-db-services sasonline/django-db-services
-# docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b11
+# docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b12
 # docker login
 # docker push sasonline/django-db-services
-# docker push sasonline/django-db-services:p3.8.3d3.0.8b11
+# docker push sasonline/django-db-services:p3.8.3d3.0.8b12

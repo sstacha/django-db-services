@@ -11,9 +11,11 @@ echo "Added $DOCKER_INTERNAL_HOST to hosts /etc/hosts"
 fi
 }
 
+echo "hosts: "
 echo "$(cat /etc/hosts)"
 echo "param 1: $1"
 
+# todo: determine if we should always collectstatic and migrate
 
 fix_linux_internal_host
 echo "running command"
