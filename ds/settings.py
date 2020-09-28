@@ -57,11 +57,13 @@ INSTALLED_APPS = [
     'django.contrib.staticfiles',
     'ds_app.apps.DsAppConfig',
     'import_export',
+    'corsheaders',
 ]
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
+    'corsheaders.middleware.CorsMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
     'django.contrib.auth.middleware.AuthenticationMiddleware',
@@ -274,3 +276,6 @@ if not isinstance(DEBUG, bool):
     #     'PASSWORD': 'root',
     # }
     # }
+
+# allow all apis to be accessible from different origins
+CORS_ALLOW_ALL_ORIGINS = True

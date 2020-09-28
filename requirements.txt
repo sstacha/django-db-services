@@ -3,3 +3,4 @@ requests
 mysqlclient
 django-import-export
 gunicorn
+django-cors-headers

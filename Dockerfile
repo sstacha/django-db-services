@@ -9,9 +9,11 @@ WORKDIR /usr/src/app
 COPY requirements.txt ./
 COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 RUN ln -s /usr/local/bin/docker-entrypoint.sh / # backwards compat
-RUN pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install -r requirements.txt
 COPY . .
 
+# adding 5000 to debug with runserver when needed
+EXPOSE 5000
 EXPOSE 8000
 # CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 ENTRYPOINT ["docker-entrypoint.sh"]
@@ -26,7 +28,7 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # docker run -it --env-file=.env --name django-db-services -p 8000:8000 -v django-db-services-data:/usr/src/app/data django-db-services
 # TO PUSH TO REPO
 # docker tag django-db-services sasonline/django-db-services
-# docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b12
+# docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b15
 # docker login
 # docker push sasonline/django-db-services
-# docker push sasonline/django-db-services:p3.8.3d3.0.8b12
+# docker push sasonline/django-db-services:p3.8.3d3.0.8b15
