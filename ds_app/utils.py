@@ -18,6 +18,22 @@ class TermColor:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+    F_Default = "\x1b[39m"
+    F_Black = "\x1b[30m"
+    F_Red = "\x1b[31m"
+    F_Green = "\x1b[32m"
+    F_Yellow = "\x1b[33m"
+    F_Blue = "\x1b[34m"
+    F_Magenta = "\x1b[35m"
+    F_Cyan = "\x1b[36m"
+    F_LightGray = "\x1b[37m"
+    F_DarkGray = "\x1b[90m"
+    F_LightRed = "\x1b[91m"
+    F_LightGreen = "\x1b[92m"
+    F_LightYellow = "\x1b[93m"
+    F_LightBlue = "\x1b[94m"
+    F_LightMagenta = "\x1b[95m"
+    F_LightCyan = "\x1b[96m"
 
 
 def is_true_value(value):
@@ -140,6 +156,16 @@ def dictfetchall_original(cursor):
         dict(zip(columns, row))
         for row in cursor.fetchall()
     ]
+
+
+def get_tuple_in_list(list_of_tuples, key):
+    """
+    returns the first tuple (key, value) for a given key in a list
+    """
+    for k, v in list_of_tuples:
+        if k == key:
+            return k, v
+    return None
 
 
 def get_key_by_idx(dictionary, idx=0):

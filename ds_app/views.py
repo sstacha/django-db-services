@@ -8,16 +8,19 @@
 #
 from django.db.utils import ConnectionDoesNotExist, OperationalError
 from django.http import Http404, JsonResponse, HttpResponseBadRequest
+from django.views.decorators.csrf import csrf_exempt
 from django.db import connections
 from django.conf import settings
 import logging
 import re
+import json
 
 from .models import Endpoint
-from .utils import TermColor, dictfetchall, dictfetchstoredresults, dictfetchstoredparameters, get_key_by_idx
+from .utils import TermColor, dictfetchall, dictfetchstoredresults, dictfetchstoredparameters
+from .utils import get_key_by_idx, get_tuple_in_list
 
 # todo: figure out how to handle types if needed (<section_id:int>)
-log = logging.getLogger("ds_app")
+log = logging.getLogger("endpoint")
 valid_methods = ["GET", "POST", "PUT", "DELETE"]
 
 
@@ -236,7 +239,7 @@ class ExecutableStatement(object):
         self.wrappered_results = {}
 
     def execute(self):
-        log.debug(f'trying to open connection [{self.connection_name}]')
+        # log.debug(f'trying to open connection [{self.connection_name}]')
         with connections[self.connection_name].cursor() as cursor:
             # NOTE: I am not sure why I wrappered everything for this error, however
             #   it prevents SQL Errors from showing so I need to raise it for now;
@@ -275,6 +278,7 @@ class ExecutableStatement(object):
                 return JsonResponse(self.results, safe=False)
 
 
+@csrf_exempt
 def process_endpoint(request, *args, **kwargs):
     """
     Processes the endpoint and returns the results if there is a match in urls.py
@@ -284,19 +288,8 @@ def process_endpoint(request, *args, **kwargs):
     :param kwargs: any keyword arguments passed to the request
     :return: json response or raised exception
     """
-    # generically process any request that matches a defined path endpoint from the admin
+    original_log_level = log.level
     _endpoint_path = kwargs.get("endpoint_path")
-    log.info(
-        TermColor.BOLD + TermColor.UNDERLINE + '------- endpoint: ' + _endpoint_path + ' --------' + TermColor.ENDC)
-    log.debug('processing endpoint...')
-    log.debug(f'path: {request.path}')
-    # print(kwargs.get('id'))
-    log.debug(f'args: {args}')
-    log.debug(f'kwargs: {kwargs}')
-    # for kwarg_key, kwarg_value in kwargs.items():
-    #     log.debug(f'kwarg: [{kwarg_key}] {kwarg_value}')
-    # print(f'ds_path: {_endpoint_path}')
-    # since we use the path to get called we know it exists
     _connection_name = ""
     try:
         endpoint = Endpoint.objects.get(path=_endpoint_path)
@@ -308,35 +301,85 @@ def process_endpoint(request, *args, **kwargs):
         _connection_name = _connection_name.strip()
         _method = request.method
         _param_list = []
-        log.debug(f"method: {_method}")
+        if 'json' in request.META.get('CONTENT_TYPE').lower():
+            received_json_data = json.loads(request.body)
+            _param_list = list(received_json_data.items())
         if _method.upper() == "POST":
-            _param_list = list(request.POST.items())
+            _param_list += list(request.POST.items())
             if request.POST.get("method"):
                 if request.POST.get("method").upper().strip() in valid_methods:
                     _method = request.POST.get("method").upper().strip()
         else:
-            _param_list = list(request.GET.items())
+            _param_list += list(request.GET.items())
             if request.GET.get("method") and request.GET.get("method").upper().strip() in valid_methods:
                 _method = request.GET.get("method").upper().strip()
+
+        # override logging as early as possible if set (need params)
+        if endpoint.log_level_override:
+            log.setLevel(endpoint.log_level_override)
+            # we use the adapter to add a skip attribute to the logrecord and then filter if needed
+
+            requested_value = None
+            param_value = None
+            if endpoint.log_filter_field_name:
+                log_extra = {'skip': True}
+                if endpoint.log_filter_field_value is None:
+                    requested_value = ""
+                else:
+                    requested_value = str(endpoint.log_filter_field_value)
+                param_tuple = get_tuple_in_list(_param_list, endpoint.log_filter_field_name)
+                if param_tuple:
+                    if param_tuple[1] is None:
+                        param_value = ""
+                    else:
+                        param_value = str(param_tuple[1])
+                    if param_value == requested_value:
+                        log_extra = {'skip': False}
+            else:
+                log_extra = {'skip': False}
+            logex = logging.LoggerAdapter(log, extra=log_extra)
+            logex.info(
+                f"{TermColor.BOLD}{TermColor.UNDERLINE}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")
+            logex.debug(f'filter value: {str(requested_value)}')
+            logex.debug(f'param value: {str(param_value)}')
+            logex.debug(f'log extra: {str(log_extra)}')
+        else:
+            logex = log
+            logex.info(
+                f"{TermColor.BOLD}{TermColor.UNDERLINE}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")
+        logex.debug(f'path: {request.path}')
+        logex.debug(f'args: {args}')
+        logex.debug(f'kwargs: {kwargs}')
+        logex.debug(f'original log level: {original_log_level}')
+        logex.debug(f'overridden log level: {log.level}')
+        logex.debug(f"method: {_method}")
+        logex.debug(f"content type: {request.META.get('CONTENT_TYPE')}")
+        logex.debug(f'body data: {str(request.body)}')
+        # info print out our params for every call
+        for key, value in _param_list:
+            logex.info(f"     {TermColor.F_DarkGray}{key}: {value}{TermColor.ENDC}")
         property_name = _method.lower() + "_statement"
-        log.debug(f"getting property: {property_name}")
+        logex.debug(f"getting property: {property_name}")
         sql = getattr(endpoint, property_name)
-        log.debug(f"sql: {sql}")
+        logex.debug(f"sql: {sql}")
         statement = ExecutableStatement(_connection_name, sql, _param_list, **kwargs)
-        log.debug(f'statement parsed sql: {str(statement.sql).strip()}')
-        log.debug(f'statement parameters: {str(statement.sql.parameter_names())}')
-        log.debug(f'statement values: {str(statement.sql.parameter_values())}')
-        log.debug(f'passed parameters: {statement.method_parameters.parameters}')
+        logex.debug(f'statement parsed sql: {str(statement.sql).strip()}')
+        logex.debug(f'statement parameters: {str(statement.sql.parameter_names())}')
+        logex.debug(f'statement values: {str(statement.sql.parameter_values())}')
+        logex.debug(f'passed parameters: {statement.method_parameters.parameters}')
         if statement.sql.init_errors:
+            log.setLevel(original_log_level)
             return HttpResponseBadRequest(statement.sql.init_errors)
         statement.execute()
-        log.info(
-            TermColor.BOLD + TermColor.UNDERLINE + '------- endpoint: ' + _endpoint_path + ' --------' + TermColor.ENDC)
+        logex.info(
+            f"{TermColor.BOLD}{TermColor.UNDERLINE}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")
+        log.setLevel(original_log_level)
         return statement.get_json_response()
 
     except Endpoint.DoesNotExist as dneerr:
         _msg = f'ERROR: we tried to get endpoint for [{_endpoint_path}] but it was not found!\n{dneerr}'
         print(_msg)
+        log.setLevel(original_log_level)
         if settings.DEBUG:
             raise Http404(_msg)
         else:
@@ -344,6 +387,7 @@ def process_endpoint(request, *args, **kwargs):
     except ConnectionDoesNotExist as conerr:
         _msg = f'ERROR: Unable to get connection [{_connection_name}] for endpoint [{_endpoint_path}]\n{conerr}'
         print(_msg)
+        log.setLevel(original_log_level)
         if settings.DEBUG:
             raise Http404(_msg)
         else:

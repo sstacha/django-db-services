@@ -1,6 +1,11 @@
 from django.db import models
 from django.conf import settings
 
+log_level_choices = (
+    (10, 'Debug'),
+    (20, 'Info'),
+)
+
 
 def get_connection_choices():
     return [
@@ -20,6 +25,9 @@ class Endpoint(models.Model):
     delete_statement = models.TextField(max_length=2000, null=True, blank=True)
     notes = models.TextField(max_length=2000, null=True, blank=True)
     is_disabled = models.BooleanField(default=False)
+    log_level_override = models.PositiveSmallIntegerField(choices=log_level_choices, null=True, blank=True)
+    log_filter_field_name = models.CharField(max_length=100, null=True, blank=True)
+    log_filter_field_value = models.CharField(max_length=100, null=True, blank=True)
     # modified_by = models.CharField(max_length=255, null=True, blank=True)
     # modified_date = models.DateTimeField(auto_now=True, editable=False)
 

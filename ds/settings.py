@@ -12,6 +12,7 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 import sys
+import logging
 from ds_app.utils import is_true_value
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
@@ -149,6 +150,13 @@ USE_L10N = True
 USE_TZ = True
 
 
+# logging filter to only override endpoint log msg if a filter field and value are used
+def endpoint_override_log_filter(record):
+    if hasattr(record, 'skip'):
+        return not record.skip
+    return True
+
+
 LOGGING = {
     'version': 1,
     'formatters': {
@@ -158,12 +166,26 @@ LOGGING = {
         'simple': {
             'format': '%(levelname)s %(message)s'
         },
+        'endpoint_format': {
+            'format': '%(levelname)s %(asctime)s %(lineno)d %(message)s'
+        },
+    },
+    'filters': {
+        'endpoint_override_filter': {
+            '()': 'django.utils.log.CallbackFilter',
+            'callback': endpoint_override_log_filter,
+        }
     },
     'handlers': {
         'console': {
             'level': 'DEBUG',
             'class': 'logging.StreamHandler',
             'formatter': 'verbose'
+        },
+        'endpoint_console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'endpoint_format'
         },
     },
     'loggers': {
@@ -193,6 +215,12 @@ LOGGING = {
             'handlers': ['console'],
             'level': 'DEBUG',
             'propagate': True,
+        },
+        'endpoint': {
+            'handlers': ['endpoint_console'],
+            'level': 'WARNING',
+            'propagate': True,
+            'filters': ['endpoint_override_filter'],
         },
     }
 }
