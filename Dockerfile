@@ -1,4 +1,5 @@
-FROM python:3.8.3-buster
+# FROM python:3.8.3-buster
+FROM python:3.9.2-buster
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -29,6 +30,7 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # TO PUSH TO REPO
 # docker tag django-db-services sasonline/django-db-services
 # docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b15
+# docker tag django-db-services sasonline/django-db-services:p3.9.2d3.1.7b5
 # docker login
 # docker push sasonline/django-db-services
-# docker push sasonline/django-db-services:p3.8.3d3.0.8b15
+# docker push sasonline/django-db-services:p3.9.2d3.1.7b5

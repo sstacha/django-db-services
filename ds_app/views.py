@@ -169,9 +169,9 @@ class ParsedSql(object):
 
     def parse_callproc(self, sql):
         upper_sql = sql.upper()
-        pos = upper_sql.find("CALLPROC")
+        pos = upper_sql.find("CALL ")
         if pos > -1:
-            pos += len("CALLPROC")
+            pos += len("CALL ")
             pos_argstart = upper_sql.find("(", pos)
             pos_argend = upper_sql.rfind(")", pos)
             if pos > -1 and pos_argstart > -1 and pos_argend > -1:
@@ -185,8 +185,8 @@ class ParsedSql(object):
                         if len(self.params) - 1 >= arg_idx:
                             self.callable_args[arg_idx] = self.params[value_idx].value
                             value_idx += 1
-            # print(f"callable_name:\n{self.callable_name}")
-            # print(f"callable_args:\n{self.callable_args}")
+            log.debug(f"callable_name:\n{self.callable_name}")
+            log.debug(f"callable_args:\n{self.callable_args}")
 
     def is_update(self):
         pos_update = self.statement.lower().find("update")
@@ -246,8 +246,10 @@ class ExecutableStatement(object):
             #   maybe for callable statement?  test this out for both params and results
             try:
                 if self.sql.is_callable():
+                    self.wrappered_results['cs'] = 'true'
                     cursor.callproc(self.sql.callable_name, self.sql.callable_args)
                     self.updated_recs = cursor.rowcount
+                    self.wrappered_results['updated'] = self.updated_recs
                     self.wrappered_results['parameters'] = dictfetchstoredparameters(cursor, self.sql.callable_name, self.sql.callable_args)
                     self.results = dictfetchstoredresults(cursor)
                     self.wrappered_results['resultsets'] = self.results
@@ -267,8 +269,6 @@ class ExecutableStatement(object):
         # todo: add logic for wrappering with debug properties
         if self.sql.is_callable():
             # add to wrappered_results if debug later
-            if self.sql.is_update():
-                self.wrappered_results['updated'] = self.updated_recs
             return JsonResponse(self.wrappered_results, safe=False)
         else:
             # change to wrappered_results if debug later
@@ -346,7 +346,7 @@ def process_endpoint(request, *args, **kwargs):
         else:
             logex = log
             logex.info(
-                f"{TermColor.BOLD}{TermColor.UNDERLINE}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")
+                f"{TermColor.BOLD}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")
         logex.debug(f'path: {request.path}')
         logex.debug(f'args: {args}')
         logex.debug(f'kwargs: {kwargs}')
@@ -371,10 +371,12 @@ def process_endpoint(request, *args, **kwargs):
             log.setLevel(original_log_level)
             return HttpResponseBadRequest(statement.sql.init_errors)
         statement.execute()
+        json_response = statement.get_json_response()
+        logex.debug(f'response[{str(json_response.status_code)}]: {str(json_response.content)}')
         logex.info(
             f"{TermColor.BOLD}{TermColor.UNDERLINE}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")
         log.setLevel(original_log_level)
-        return statement.get_json_response()
+        return json_response
 
     except Endpoint.DoesNotExist as dneerr:
         _msg = f'ERROR: we tried to get endpoint for [{_endpoint_path}] but it was not found!\n{dneerr}'
