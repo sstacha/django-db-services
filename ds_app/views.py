@@ -301,7 +301,7 @@ def process_endpoint(request, *args, **kwargs):
         _connection_name = _connection_name.strip()
         _method = request.method
         _param_list = []
-        if 'json' in request.META.get('CONTENT_TYPE').lower():
+        if request.META.get('CONTENT_TYPE') and 'json' in request.META.get('CONTENT_TYPE').lower():
             received_json_data = json.loads(request.body)
             _param_list = list(received_json_data.items())
         if _method.upper() == "POST":
