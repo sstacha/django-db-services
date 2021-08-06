@@ -17,7 +17,7 @@ import json
 
 from .models import Endpoint
 from .utils import TermColor, dictfetchall, dictfetchstoredresults, dictfetchstoredparameters
-from .utils import get_key_by_idx, get_tuple_in_list, to_bool, to_int
+from .utils import get_key_by_idx, get_tuple_in_list, to_bool
 
 # todo: figure out how to handle types if needed (<section_id:int>)
 log = logging.getLogger("endpoint")
@@ -28,42 +28,11 @@ class SqlParameter(object):
     """
     Instead of just the arg name we need the position to know for optional arguments
     """
-    def __init__(self, name, value=None, positions=(-1, -1), ordinal=False, group=None):
-        self.group = group
+    def __init__(self, name, value=None, positions=(-1, -1)):
         self.name = name
+        self.value = value
         self.start = positions[0]
         self.end = positions[1]
-        self.ordinal = ordinal
-        self.cast_to = None
-        self.__value = value
-        if ordinal:
-            if group:
-                # if we have a group (we should) parse the pipes if found to determine the cast_to
-                # look for a |<cast char>| and perform casting on value
-                # NOTE: for backwards compatibility with java strip anything we don't think we need in python
-                pos_cast_start = group.find("|")
-                pos_cast_end = group.rfind("|")
-                if pos_cast_start > -1 and pos_cast_end > -1:
-                    self.cast_to = group[pos_cast_start + 1:pos_cast_end]
-        else:
-            # if we have a name that is parseable like <int: name> then set cast_to and reset name
-            pos_cast_delim = self.name.find(":")
-            if pos_cast_delim > -1:
-                self.cast_to = self.name[:pos_cast_delim]
-                self.name = self.name[pos_cast_delim + 1:].strip()
-
-    @property
-    def value(self):
-        return self.__value
-
-    @value.setter
-    def value(self, value):
-        self.__value = value
-        if self.cast_to and self.cast_to in ["b", "bool"]:
-            # cast any true, t, y, yes etc to the correct boolean value
-            self.__value = to_bool(value, keep_null=True)
-        if self.cast_to and self.cast_to in ["i", "l", "int"]:
-            self.__value = to_int(value, keep_null=True, raise_exception=True)
 
     def __str__(self):
         return self.name
@@ -140,17 +109,16 @@ class ParsedSql(object):
         return sql
 
     def parse_ordinal_args(self, sql, params):
-        pattern = re.compile(r'(\?(\|.\|)?)')
+        pattern = re.compile(r'(\?)')
         new_sql = ""
         last_match = 0
         ordinal_index = 0
         for match in re.finditer(pattern, sql):
             # print(match.group(1))
             try:
-                key = get_key_by_idx(params.parameters, ordinal_index)
-                param = SqlParameter(key, positions=match.span(), ordinal=True, group=match.group(1))
+                param = SqlParameter(get_key_by_idx(params.parameters, ordinal_index), positions=match.span())
             except IndexError:
-                param = SqlParameter(f"p{ordinal_index}", positions=match.span(), ordinal=True, group=match.group(1))
+                param = SqlParameter(f"p{ordinal_index}", positions=match.span())
             self.params.append(param)
             ordinal_index += 1
             new_sql += sql[last_match:match.start()]
@@ -161,12 +129,12 @@ class ParsedSql(object):
         return new_sql
 
     def parse_named_args(self, sql):
-        pattern = re.compile(r'<(.+)>')
+        pattern = re.compile(r'<(\S+)>')
         new_sql = ""
         last_match = 0
         for match in re.finditer(pattern, sql):
             # print(match.group(1))
-            self.params.append(SqlParameter(match.group(1), positions=match.span(), group=match.group(1)))
+            self.params.append(SqlParameter(match.group(1), positions=match.span()))
             new_sql += sql[last_match:match.start()]
             new_sql += '%s'
             last_match = match.end()
@@ -213,9 +181,22 @@ class ParsedSql(object):
                 # substitute any callable args '%s' with the next value
                 value_idx = 0
                 for arg_idx in range(len(self.callable_args)):
-                    # if self.callable_args[arg_idx] and self.callable_args[arg_idx].strip().startswith("%s"):
-                    if self.callable_args[arg_idx] and self.callable_args[arg_idx].strip() == "%s":
+                    if self.callable_args[arg_idx] and self.callable_args[arg_idx].strip().startswith("%s"):
                         if len(self.params) > arg_idx:
+                            # look for a |<cast char>| and perform casting on value
+                            # NOTE: for backwards compatibility with java strip anything we don't think we need in python
+                            pos_cast_start = self.callable_args[arg_idx].find("|")
+                            pos_cast_end = self.callable_args[arg_idx].rfind("|")
+                            cast_to = None
+                            if pos_cast_start > -1 and pos_cast_end > -1:
+                                cast_to = self.callable_args[arg_idx][pos_cast_start + 1:pos_cast_end]
+                                # stripped_arg = self.callable_args[arg_idx][:pos_cast_start]
+                                # stripped_arg = stripped_arg + self.callable_args[arg_idx][pos_cast_end + 1:]
+                                # self.callable_args[arg_idx] = stripped_arg
+                            if cast_to and cast_to == "b":
+                                # cast any true, t, y, yes etc to the correct boolean value
+                                self.params[value_idx].value = to_bool(self.params[value_idx].value, keep_null=True)
+                            # we will just replace the whole %s<stuff> with the value
                             self.callable_args[arg_idx] = self.params[value_idx].value
                             value_idx += 1
             log.debug(f"callable_name:\n{self.callable_name}")

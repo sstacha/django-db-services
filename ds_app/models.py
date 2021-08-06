@@ -31,5 +31,8 @@ class Endpoint(models.Model):
     # modified_by = models.CharField(max_length=255, null=True, blank=True)
     # modified_date = models.DateTimeField(auto_now=True, editable=False)
 
+    class Meta:
+        ordering = ["path"]
+
     def __str__(self):
         return self.path

@@ -1,5 +1,6 @@
 # import logging
 import sys
+import datetime
 from django.conf import settings
 from importlib import reload
 from django.urls import clear_url_caches
@@ -36,10 +37,61 @@ class TermColor:
     F_LightCyan = "\x1b[96m"
 
 
+# convert string to date
+# NOTE: requires format yyyy-mm-dd
+def to_date(value):
+    """
+    convert the value passed to a date/time
+    """
+    if isinstance(value, str):
+        return datetime.date(*(int(s) for s in value.split('-')))
+    return value
+
+
+def to_bool(value, keep_null=False):
+    """
+    convert the value passed to boolean if it meets criteria otherwise return what was passed
+    NOTE: if None is passed (null) then we want to keep it since the db can support it
+    """
+    if value is not None:
+        # note: need this line because strings and numbers are truthy and will return true
+        if isinstance(value, str):
+            if value.lower() in ["0", "n", "f", "false", "no"]:
+                return False
+        if value in [0, False]:
+            return False
+        if value:
+            return True
+        return False
+    else:
+        if keep_null:
+            return None
+        return False
+
+
+def to_int(value, keep_null=False, raise_exception=False):
+    """
+    convert value to int where possible
+    NOTE: pass keep_null=True to return None values
+    NOTE: pass raise_exception to raise exceptions or it will just convert to 0 by default
+    NOTE: python uses int for both ints and longs
+    """
+    if value is None and keep_null:
+        return value
+    if raise_exception:
+        return int(value)
+    try:
+        return int(value)
+    except:
+        return 0
+
+
 def is_true_value(value):
     if value is not None:
-        # note: don't think I need these because they are all truthy and will be caught by if value...
-        if value in ["1", 1, "y", "Y", True, "t", "T", "TRUE", "True", "true", "YES", "Yes", "yes", "ON", "On", "on"]:
+        if isinstance(value, str):
+            if value.lower() in ["1", "y", "t", "true", "yes", "on"]:
+                return True
+        if value in [1, True]:
             return True
     return False
 

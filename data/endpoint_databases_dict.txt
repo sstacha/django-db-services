@@ -1,12 +1,20 @@
 {
+#     'web_cache': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'HOST': localhost,
+#         # 'HOST': 'localhost',
+#         'NAME': 'web_cache',
+#         'PORT': '3306',
+#         'USER': 'root',
+#         'PASSWORD': 'root',
+#     },
     'web_cache': {
         'ENGINE': 'django.db.backends.mysql',
-        'HOST': localhost,
-        # 'HOST': 'localhost',
+        'HOST': 'webserverdev.spe.org', # localhost
         'NAME': 'web_cache',
         'PORT': '3306',
-        'USER': 'root',
-        'PASSWORD': 'root',
+        'USER': 'dbServices', # root
+        'PASSWORD': '<m?PJ6+9\']w(H!L', # 'root'
     },
     'enterprise_data': {
         'ENGINE': 'django.db.backends.mysql',
