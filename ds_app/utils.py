@@ -1,6 +1,7 @@
 # import logging
 import sys
 import datetime
+from io import StringIO
 from django.conf import settings
 from importlib import reload
 from django.urls import clear_url_caches
@@ -227,6 +228,15 @@ def get_key_by_idx(dictionary, idx=0):
         if i == idx:
             return key
     raise IndexError("dictionary index out of range")
+
+
+def print_to_string(string):
+    save_stdout = sys.stdout
+    result = StringIO()
+    sys.stdout = result
+    print(string)
+    sys.stdout = save_stdout
+    return result.getvalue()
 
 
 def testcp():

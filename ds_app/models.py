@@ -4,6 +4,7 @@ from django.conf import settings
 log_level_choices = (
     (10, 'Debug'),
     (20, 'Info'),
+    (30, 'Warning')
 )
 
 

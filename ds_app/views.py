@@ -403,6 +403,7 @@ def process_endpoint(request, *args, **kwargs):
         if statement.sql.init_errors:
             log.setLevel(original_log_level)
             return HttpResponseBadRequest(statement.sql.init_errors)
+
         statement.execute()
         json_response = statement.get_json_response()
         logex.debug(f'response[{str(json_response.status_code)}]: {str(json_response.content)}')
@@ -427,3 +428,5 @@ def process_endpoint(request, *args, **kwargs):
             raise Http404(_msg)
         else:
             raise Http404("Unable to connect to the database")
+    finally:
+        log.setLevel(original_log_level)

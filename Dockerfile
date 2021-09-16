@@ -31,7 +31,7 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # docker tag django-db-services sasonline/django-db-services
 # docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b15
 # docker tag django-db-services sasonline/django-db-services:p3.9.2d3.1.7b6
-# docker tag django-db-services sasonline/django-db-services:p3.9.6d3.2.6b1
+# docker tag django-db-services sasonline/django-db-services:p3.9.6d3.2.6b2
 # docker login
 # docker push sasonline/django-db-services
-# docker push sasonline/django-db-services:p3.9.6d3.2.6b1
+# docker push sasonline/django-db-services:p3.9.6d3.2.6b2
