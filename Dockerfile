@@ -1,9 +1,10 @@
 # FROM python:3.8.3-buster
-FROM python:3.9.2-buster
+FROM python:3.10.1-buster
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        postgresql-client default-libmysqlclient-dev libldap2-dev libsasl2-dev libssl-dev
+        postgresql-client default-libmysqlclient-dev libldap2-dev libsasl2-dev libssl-dev \
+        wget vim lynx curl
 #    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
@@ -21,7 +22,7 @@ ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # BUILD
-# docker build -t django-db-services .
+# docker build -t sasonline/django-db-services .
 # RUN
 # w/dir mount
 # docker run -it --env-file=.env --name django-db-services -p 8000:8000 -v $(pwd)/data:/usr/src/app/data django-db-services
@@ -31,7 +32,8 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # docker tag django-db-services sasonline/django-db-services
 # docker tag django-db-services sasonline/django-db-services:p3.8.3d3.0.8b15
 # docker tag django-db-services sasonline/django-db-services:p3.9.2d3.1.7b6
-# docker tag django-db-services sasonline/django-db-services:p3.9.6d3.2.6b2
+# docker tag django-db-services sasonline/django-db-services:p3.9.6d3.2.9b2
+# docker tag sasonline/django-db-services sasonline/django-db-services:p3.10.1d3.2.11b1
 # docker login
 # docker push sasonline/django-db-services
-# docker push sasonline/django-db-services:p3.9.6d3.2.6b2
+# docker push sasonline/django-db-services:p3.10.1d3.2.11b1

@@ -1,11 +1,15 @@
 # import logging
 import sys
+import io
 import datetime
 from io import StringIO
 from django.conf import settings
 from importlib import reload
 from django.urls import clear_url_caches
-from django.db import connections
+from django.db import connections, IntegrityError, DatabaseError
+from contextlib import redirect_stdout
+import logging
+from collections import namedtuple
 
 
 class TermColor:
@@ -36,6 +40,146 @@ class TermColor:
     F_LightBlue = "\x1b[94m"
     F_LightMagenta = "\x1b[95m"
     F_LightCyan = "\x1b[96m"
+
+
+class LogBuffer:
+    """
+    Captures all logging to a buffer; simulates the logging library methods and levels
+    """
+    # constants for picking the log_level and determining if we log to console based on it
+    LOG_DEBUG = logging.DEBUG
+    LOG_INFO = logging.INFO
+    LOG_WARN = logging.WARNING
+    LOG_FATAL = logging.FATAL
+    LOG_ALWAYS = 99
+    LOG_SPACE = 999
+
+    _buffer = ""
+
+    def __init__(self, name: str = None, logger: logging.Logger = None, level: int = None, color_output: bool = False,
+                 echo: bool = False) -> None:
+        self.name = name
+        self.logger = logger or logging.getLogger(name)
+        if level is None:
+            self._level = self.logger.getEffectiveLevel()
+        else:
+            self._level = level
+        self.level = self._level
+        self.color_output = color_output
+        self.echo = echo
+
+    # logging helper functions
+    def debug(self, msg):
+        self.log(msg, self.LOG_DEBUG)
+
+    def info(self, msg, color_output=None):
+        self.log(msg, self.LOG_INFO, color_output)
+
+    def warning(self, msg, color_output=None):
+        self.log(msg, self.LOG_WARN, color_output)
+
+    def fatal(self, msg, color_output=None):
+        self.log(msg, self.LOG_FATAL, color_output)
+
+    def always(self, msg, color_output=None):
+        self.log(msg, self.LOG_ALWAYS, color_output)
+
+    def log(self, msg, log_level, color_output=None):
+        if log_level >= self.level:
+            c_msg = str(msg)
+            color = color_output or self.color_output
+            if color:
+                if log_level == self.LOG_DEBUG:
+                    c_msg = self.format_msg(log_level, msg)
+                if log_level == self.LOG_INFO:
+                    c_msg = TermColor.OKBLUE + self.format_msg(log_level, msg) + TermColor.ENDC
+                if log_level == self.LOG_WARN:
+                    c_msg = TermColor.WARNING + self.format_msg(log_level, msg) + TermColor.ENDC
+                if log_level == self.LOG_FATAL:
+                    c_msg = TermColor.FAIL + self.format_msg(log_level, msg) + TermColor.ENDC
+                if log_level == self.LOG_ALWAYS:
+                    c_msg = TermColor.F_DarkGray + self.format_msg(log_level, msg) + TermColor.ENDC
+            self._buffer += c_msg + "\n"
+            if self.echo:
+                self.logger.log(log_level, c_msg)
+
+    def clear(self) -> None:
+        self._buffer = ""
+        self.level = self._level
+
+    def __str__(self):
+        return self._buffer
+
+    def format_msg(self, log_level: int, c_msg: str) -> str:
+        # later may add formatting separately like logging but static for now
+        if log_level == self.LOG_SPACE:
+            msg = f"{self.get_status(log_level)} {''.ljust(19)} {c_msg}"
+        else:
+            msg = f"{self.get_status(log_level)} {self.get_time()} {c_msg}"
+        return msg
+
+    def get_status(self, log_level: int) -> str:
+        if log_level == self.LOG_DEBUG:
+            return "DEBUG".ljust(5)
+        if log_level == self.LOG_INFO:
+            return "INFO".ljust(5)
+        if log_level == self.LOG_WARN:
+            return "WARN".ljust(5)
+        if log_level == self.LOG_FATAL:
+            return "FATAL".ljust(5)
+        if log_level == self.LOG_ALWAYS:
+            return "TRACE".ljust(5)
+        return "".ljust(5)
+
+    @staticmethod
+    def get_time() -> str:
+        return f'{datetime.datetime.now():%Y-%m-%d %H:%M:%S%z}'
+
+
+# class ColorLogger:
+#     """
+#     Class to encapsulate methods and data for logging at a specific log level with terminal colors
+#     """
+#     # constants for picking the log_level and determining if we log to console based on it
+#     LOG_DEBUG = 0
+#     LOG_INFO = 1
+#     LOG_WARN = 2
+#     LOG_FATAL = 3
+#     LOG_ALWAYS = 4
+#
+#     def __init__(self, name, level=LOG_FATAL):
+#         self.name = name
+#         self.level = level
+#
+#     # logging helper functions
+#     def debug(self, msg):
+#         self.log(msg, self.LOG_DEBUG)
+#
+#     def info(self, msg, color_output=True):
+#         self.log(msg, self.LOG_INFO, color_output)
+#
+#     def warn(self, msg, color_output=True):
+#         self.log(msg, self.LOG_WARN, color_output)
+#
+#     def fatal(self, msg, color_output=True):
+#         self.log(msg, self.LOG_FATAL, color_output)
+#
+#     def always(self, msg, color_output=True):
+#         self.log(msg, self.LOG_ALWAYS, color_output)
+#
+#     def log(self, msg, log_level, color_output=True):
+#         if log_level >= self.level:
+#             c_msg = msg
+#             if color_output:
+#                 if log_level == self.LOG_INFO:
+#                     c_msg = TermColor.OKBLUE + msg + TermColor.ENDC
+#                 if log_level == self.LOG_WARN:
+#                     c_msg = TermColor.WARNING + msg + TermColor.ENDC
+#                 if log_level == self.LOG_FATAL:
+#                     c_msg = TermColor.FAIL + msg + TermColor.ENDC
+#                 if log_level == self.LOG_ALWAYS:
+#                     c_msg = TermColor.F_DarkGray + msg + TermColor.ENDC
+#             print(c_msg)
 
 
 # convert string to date
@@ -211,6 +355,13 @@ def dictfetchall_original(cursor):
     ]
 
 
+def namedtuplefetchall(cursor):
+    "Return all rows from a cursor as a namedtuple"
+    desc = cursor.description
+    nt_result = namedtuple('Result', [col[0] for col in desc])
+    return [nt_result(*row) for row in cursor.fetchall()]
+
+
 def get_tuple_in_list(list_of_tuples, key):
     """
     returns the first tuple (key, value) for a given key in a list
@@ -231,12 +382,57 @@ def get_key_by_idx(dictionary, idx=0):
 
 
 def print_to_string(string):
+    """
+    testing printing to a string using stringio class
+    """
     save_stdout = sys.stdout
     result = StringIO()
     sys.stdout = result
     print(string)
     sys.stdout = save_stdout
     return result.getvalue()
+
+
+class Capture(redirect_stdout):
+    """
+    Class to capture the output from stdout and send to string within a block
+    Ex: with capture() as message:
+            print('hello world')
+        print(str(message))
+    """
+    def __init__(self):
+        self.f = io.StringIO()
+        self._new_target = self.f
+        self._old_targets = []  # verbatim from parent class
+
+    def __enter__(self):
+        self._old_targets.append(getattr(sys, self._stream))  # verbatim from parent class
+        setattr(sys, self._stream, self._new_target)  # verbatim from parent class
+        return self  # instead of self._new_target in the parent class
+
+    def __repr__(self):
+        return self.f.getvalue()
+
+
+def table_exists(table_name: str, connection_name: str) -> bool:
+    return table_name in connections[connection_name].introspection.table_names()
+
+
+def get_table_schema(table_name: str, connection_name: str) -> dict:
+    schema = {}
+    if not table_exists(table_name, connection_name):
+        raise IntegrityError(f"Table [{table_name}] does not exist!")
+
+    connection = connections[connection_name]
+    with connection.cursor() as cursor:
+        table_info = connection.introspection.get_table_list(cursor)
+    return schema
+
+
+def testcapture():
+    with Capture() as message:
+        print('hello world')
+    print(str(message))
 
 
 def testcp():

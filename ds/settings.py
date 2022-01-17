@@ -33,13 +33,14 @@ DATA_DIR = os.path.join(BASE_DIR, 'data')
 
 # SECURITY WARNING: keep the secret key used in production secret!
 SECRET_KEY = '+^=p!b51_v^7h!^@11_wwmvhxpj*s^ti)n5(=jouwt230u4j!z'
+print(f'SECRET_KEY: {SECRET_KEY}')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
 env_hosts = os.environ.get('ALLOWED_HOSTS', '*')
 ALLOWED_HOSTS = [env_hosts]
-# print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
+print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
@@ -59,6 +60,8 @@ INSTALLED_APPS = [
     'ds_app.apps.DsAppConfig',
     'import_export',
     'corsheaders',
+    'ds_sync.apps.SyncAppConfig',
+    'tagulous',
 ]
 
 MIDDLEWARE = [
@@ -141,7 +144,7 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+TIME_ZONE = "America/Chicago"
 
 USE_I18N = True
 
@@ -213,7 +216,12 @@ LOGGING = {
         },
         'ds_app': {
             'handlers': ['console'],
-            'level': 'DEBUG',
+            'level': 'INFO',
+            'propagate': True,
+        },
+        'ds_sync': {
+            'handlers': ['endpoint_console'],
+            'level': 'INFO',
             'propagate': True,
         },
         'endpoint': {
@@ -310,4 +318,13 @@ CORS_ALLOW_ALL_ORIGINS = True
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
-DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+DEFAULT_AUTO_FIELD = 'django.db.models.AutoField'
+
+# tagulous recommended settings
+SERIALIZATION_MODULES = {
+    'xml':    'tagulous.serializers.xml_serializer',
+    'json':   'tagulous.serializers.json',
+    'python': 'tagulous.serializers.python',
+    'yaml':   'tagulous.serializers.pyyaml',
+}
+TAGULOUS_NAME_MAX_LENGTH = 191

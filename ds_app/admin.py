@@ -3,6 +3,7 @@ from django.dispatch import receiver
 from import_export import resources
 from import_export.signals import post_import
 from import_export.admin import ImportExportActionModelAdmin
+from django.utils.html import format_html
 
 from .models import Endpoint
 from .utils import reload_app_urls
@@ -28,7 +29,7 @@ def _post_import(model, **kwargs):
 class EndpointAdmin(ImportExportActionModelAdmin):
     resource_class = EndpointResource
     search_fields = ('path', )
-    list_display = ('path', 'connection_name', 'is_disabled')
+    list_display = ('path', 'connection_name', 'is_disabled', 'test_link')
     list_filter = ('connection_name', )
     # readonly_fields = ('modified_by', 'modified_date',)
     save_as = True
@@ -47,3 +48,6 @@ class EndpointAdmin(ImportExportActionModelAdmin):
         super().delete_model(request, obj)
         # reload_urls('ds_app.urls')
         reload_app_urls()
+
+    def test_link(self, obj):
+        return format_html(f"<a href='/_ds/{obj.path}'target='_blank' rel='noopener noreferrer'>Test</a>")
