@@ -21,6 +21,20 @@ EXPOSE 8000
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
+# NEW: MULTI-ARCH BUILDS
+# PREP (1st time on dev box):
+# docker buildx create --name spebuilder
+# docker buildx use spebuilder
+# docker buildx inspect --bootstrap
+# docker buildx ls
+# NOTE: at this point should be starred and show arch's we build for
+
+# BUILD (each time):
+# docker buildx build -t sasonline/django-db-services:p3.10.1d3.2.14b4 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
+# NOTE: this should build/build the manifest and push all arches to dockerhub
+
+
+
 # BUILD
 # docker build -t sasonline/django-db-services .
 # RUN

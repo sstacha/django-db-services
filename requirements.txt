@@ -1,8 +1,10 @@
 # NOTE: fix issue where dockerbizdev doesn't work >= 4.0
-Django==3.2.11
+Django<4
 requests
 mysqlclient
 django-import-export
 gunicorn
 django-cors-headers
 django-tagulous
+ldap3
+django-authgw

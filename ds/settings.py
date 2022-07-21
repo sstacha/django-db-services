@@ -62,6 +62,7 @@ INSTALLED_APPS = [
     'corsheaders',
     'ds_sync.apps.SyncAppConfig',
     'tagulous',
+    'authgw',
 ]
 
 MIDDLEWARE = [
@@ -328,3 +329,16 @@ SERIALIZATION_MODULES = {
     'yaml':   'tagulous.serializers.pyyaml',
 }
 TAGULOUS_NAME_MAX_LENGTH = 191
+
+# LDAP/AD AUTHENTICATION
+# ----
+# NOTE: using default AD auth (NTLM)
+LDAP_HOST = 'dccolo1.spe.org'
+AD_DOMAIN = 'SPEHQ'
+AD_USER_ID_PREFIX = 'u:'
+LDAP_USER_SEARCH_DN = "ou=OFFICES,dc=spe,dc=org"
+LDAP_USER_SEARCH_QUERY = "(&(objectclass=person)(sAMAccountName={}))"
+LDAP_AUTHENTICATED_GROUPS = ['Everyone']
+
+AUTHENTICATION_BACKENDS = ['authgw.utils.ldap3.LdapBackend', 'django.contrib.auth.backends.ModelBackend']
+

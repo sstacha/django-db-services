@@ -1,0 +1,7 @@
+data/db.sqlite3
+data/db.env
+data/.env
+db.env
+.env
+test.env
+backup
