@@ -161,7 +161,9 @@ class ParsedSql(object):
         return new_sql
 
     def parse_named_args(self, sql):
-        pattern = re.compile(r'<(.+)>')
+        # pattern = re.compile(r'<(.+)>')
+        # pattern was too greedy and caught everything; trying to exclude >
+        pattern = re.compile(r'<([^>]+)>')
         new_sql = ""
         last_match = 0
         for match in re.finditer(pattern, sql):
@@ -175,10 +177,10 @@ class ParsedSql(object):
         return new_sql
 
     def strip_optional_args(self, sql, passed_parameters):
-        us_pos_start = self.uncommented_sql.find('[')
-        us_pos_end = self.uncommented_sql.rfind(']')
-        s_pos_start = sql.find('[')
-        s_pos_end = sql.find(']')
+        us_pos_start = self.uncommented_sql.find('[[')
+        us_pos_end = self.uncommented_sql.rfind(']]')
+        s_pos_start = sql.find('[[')
+        s_pos_end = sql.find(']]')
 
         if us_pos_start > -1 and us_pos_end > -1:
             missing = False
@@ -193,10 +195,10 @@ class ParsedSql(object):
                     if param.start >= us_pos_start and param.end <= us_pos_end:
                         self.params.remove(param)
                 # strip the whole block from the sql
-                return sql[0:s_pos_start] + sql[s_pos_end + 1:]
+                return sql[0:s_pos_start] + sql[s_pos_end + 2:]
             else:
                 # strip only the open/close bracket tag
-                return sql[0:s_pos_start] + sql[s_pos_start + 1:s_pos_end] + sql [s_pos_end + 1:]
+                return sql[0:s_pos_start] + sql[s_pos_start + 2:s_pos_end] + sql [s_pos_end + 2:]
         return sql
 
     def parse_callproc(self, sql):
@@ -251,6 +253,15 @@ class ParsedSql(object):
             value_list.append(param.value)
         return value_list
 
+    def parameter_dict(self):
+        """
+        returns the sql parameter values in a dict for use in verbose result output
+        """
+        value_dict = {}
+        for param in self.params:
+            value_dict[param.name] = str(param.value)
+        return value_dict
+
     def __str__(self):
         return self.statement
 
@@ -283,32 +294,54 @@ class ExecutableStatement(object):
                     cursor.callproc(self.sql.callable_name, self.sql.callable_args)
                     self.updated_recs = cursor.rowcount
                     self.wrappered_results['updated'] = self.updated_recs
-                    self.wrappered_results['parameters'] = dictfetchstoredparameters(cursor, self.sql.callable_name, self.sql.callable_args)
                     self.results = dictfetchstoredresults(cursor)
                     self.wrappered_results['resultsets'] = self.results
+                    # sas 2022-08-08 - moving last since we call another cursor which wipes previous results
+                    self.wrappered_results['parameters'] = dictfetchstoredparameters(cursor, self.sql.callable_name, self.sql.callable_args)
+                    # sas 2022-08-08 - since we might return just simple response we need to set that as well
+                    #   will set to first resultset in results if we have anything
+                    if self.results:
+                        self.results = self.results[0]
+                        self.results = self.results.get('rs0', [])
+
                 else:
+                    self.wrappered_results['cs'] = 'true'
                     if self.sql.params:
                         cursor.execute(self.sql.statement, self.sql.parameter_values())
                     else:
                         cursor.execute(self.sql.statement)
                     self.results = dictfetchall(cursor)
                     self.updated_recs = cursor.rowcount
+                    self.wrappered_results['updated'] = self.updated_recs
+                    self.wrappered_results['resultsets'] = {'rs0': self.results}
+                    self.wrappered_results['parameters'] = self.sql.parameter_dict()
+
             except OperationalError as oe:
                 log.debug(oe)
                 if settings.DEBUG:
                     raise oe
 
-    def get_json_response(self):
-        # todo: add logic for wrappering with debug properties
+    def get_json_response(self, response_format):
+        # return the wrappered_results or results based on response_format
         if self.sql.is_callable():
-            # add to wrappered_results if debug later
-            return JsonResponse(self.wrappered_results, safe=False)
-        else:
-            # change to wrappered_results if debug later
-            if self.sql.is_update():
-                return JsonResponse(f'{{"updated":{self.updated_recs}}}')
+            # default response format for callable statements is verbose since we can have in/out  params and
+            #   multiple results
+            if not response_format:
+                response_format = "verbose"
+            if response_format == "verbose":
+                return JsonResponse(self.wrappered_results, safe=False)
             else:
                 return JsonResponse(self.results, safe=False)
+        else:
+            # default response format for executed sql is simple since we only get one resultset returned
+            # NOTE: change this if we add new types to support other logic like above
+            if response_format == "verbose":
+                return JsonResponse(self.wrappered_results, safe=False)
+            else:
+                if self.sql.is_update():
+                    return JsonResponse(f'{{"updated":{self.updated_recs}}}')
+                else:
+                    return JsonResponse(self.results, safe=False)
 
 
 @csrf_exempt
@@ -332,6 +365,7 @@ def process_endpoint(request, *args, **kwargs):
         # we have our endpoint and not disabled so lets execute our query and return the results as json
         _connection_name = endpoint.connection_name or ""
         _connection_name = _connection_name.strip()
+        _result_format = endpoint.result_format
         _method = request.method
         _param_list = []
         if request.META.get('CONTENT_TYPE') and 'json' in request.META.get('CONTENT_TYPE').lower() and request.body:
@@ -405,7 +439,7 @@ def process_endpoint(request, *args, **kwargs):
             return HttpResponseBadRequest(statement.sql.init_errors)
 
         statement.execute()
-        json_response = statement.get_json_response()
+        json_response = statement.get_json_response(_result_format)
         logex.debug(f'response[{str(json_response.status_code)}]: {str(json_response.content)}')
         logex.info(
             f"{TermColor.BOLD}{TermColor.UNDERLINE}------- endpoint: {_endpoint_path} --------{TermColor.ENDC}")

@@ -7,6 +7,11 @@ log_level_choices = (
     (30, 'Warning')
 )
 
+return_choices = (
+    ('simple', 'resultset only'),
+    ('verbose', 'basic property information including resultsets')
+)
+
 
 def get_connection_choices():
     return [
@@ -26,6 +31,11 @@ class Endpoint(models.Model):
     delete_statement = models.TextField(max_length=2000, null=True, blank=True)
     notes = models.TextField(max_length=2000, null=True, blank=True)
     is_disabled = models.BooleanField(default=False)
+    result_format = models.CharField(max_length=25, choices=return_choices, null=True, blank=True,
+                                     help_text=(
+                                         'Empty value will default to simple for SQL and verbose for stored '
+                                         'procedures.  Note: specifying simple for stored procedure will only '
+                                         'return the first resultset'))
     log_level_override = models.PositiveSmallIntegerField(choices=log_level_choices, null=True, blank=True)
     log_filter_field_name = models.CharField(max_length=100, null=True, blank=True)
     log_filter_field_value = models.CharField(max_length=100, null=True, blank=True)

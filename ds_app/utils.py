@@ -460,6 +460,7 @@ def testcp():
             resultsets.append({'rs' + str(i): dictfetchall(cursor)})
         print(resultsets)
 
+
 def test_driver():
     with connections['eva'].cursor() as cursor:
         # sql = """
@@ -472,6 +473,7 @@ WHERE name NOT LIKE concat('%', x'22', '%')
         cursor.execute(sql)
         results = dictfetchall(cursor)
         print(results)
+
 
 if __name__ == '__main__':
     print('main')
