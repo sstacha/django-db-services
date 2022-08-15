@@ -163,7 +163,10 @@ class ParsedSql(object):
     def parse_named_args(self, sql):
         # pattern = re.compile(r'<(.+)>')
         # pattern was too greedy and caught everything; trying to exclude >
-        pattern = re.compile(r'<([^>]+)>')
+        # pattern = re.compile(r'<([^>]+)>')
+        # pattern still too greedy; catching = and >= or < <= in where clause
+        # NOTE: (?!) is a negative lookahead; [\s]|[=] makes it not match if whitespace or equals
+        pattern = re.compile(r'<(?![\s]|[=])([^>]+)>')
         new_sql = ""
         last_match = 0
         for match in re.finditer(pattern, sql):
