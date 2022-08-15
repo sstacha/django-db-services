@@ -30,7 +30,7 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # NOTE: at this point should be starred and show arch's we build for
 
 # BUILD (each time):
-# docker buildx build -t sasonline/django-db-services:p3.10.1d3.2.14b5 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
+# docker buildx build -t sasonline/django-db-services:p3.10.1d3.2.14b6 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
 # NOTE: this should build/build the manifest and push all arches to dockerhub
 
 
