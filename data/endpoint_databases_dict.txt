@@ -26,6 +26,15 @@
         'USER': 'root',
         'PASSWORD': 'root',
     },
+    'new_events': {
+        'ENGINE': 'django.db.backends.mysql',
+        'HOST': localhost,
+        # 'HOST': 'localhost',
+        'NAME': 'events',
+        'PORT': '3306',
+        'USER': 'root',
+        'PASSWORD': 'root',
+    },
     'events': {
         'ENGINE': 'django.db.backends.mysql',
         'HOST': localhost,

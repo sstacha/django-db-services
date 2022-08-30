@@ -180,12 +180,19 @@ class ParsedSql(object):
         return new_sql
 
     def strip_optional_args(self, sql, passed_parameters):
-        us_pos_start = self.uncommented_sql.find('[[')
-        us_pos_end = self.uncommented_sql.rfind(']]')
-        s_pos_start = sql.find('[[')
-        s_pos_end = sql.find(']]')
+        """
+        strip optional args not supporting multiple strips; need to loop and change the search for the ending ]]
 
-        if us_pos_start > -1 and us_pos_end > -1:
+        NOTE: uncommented sql is needed because it has the param names still; sql has had them replaced with values
+        """
+        us = self.uncommented_sql
+        us_pos_start = us.find('[[')
+        us_pos_end = us.find(']]', us_pos_start) if us_pos_start > -1 else -1
+        s = sql
+        s_pos_start = s.find('[[')
+        s_pos_end = s.find(']]', s_pos_start) if s_pos_start > -1 else -1
+
+        while us_pos_start > -1 and us_pos_end > -1 and s_pos_start > -1 and s_pos_end > -1:
             missing = False
             for param in self.params:
                 if param.start >= us_pos_start and param.end <= us_pos_end:
@@ -198,11 +205,16 @@ class ParsedSql(object):
                     if param.start >= us_pos_start and param.end <= us_pos_end:
                         self.params.remove(param)
                 # strip the whole block from the sql
-                return sql[0:s_pos_start] + sql[s_pos_end + 2:]
+                s = s[0:s_pos_start] + s[s_pos_end + 2:]
             else:
                 # strip only the open/close bracket tag
-                return sql[0:s_pos_start] + sql[s_pos_start + 2:s_pos_end] + sql [s_pos_end + 2:]
-        return sql
+                s = s[0:s_pos_start] + s[s_pos_start + 2:s_pos_end] + s[s_pos_end + 2:]
+            # look for other block positions
+            us_pos_start = us.find('[[', us_pos_end)
+            us_pos_end = us.find(']]', us_pos_start) if us_pos_start > -1 else -1
+            s_pos_start = s.find('[[', s_pos_end)
+            s_pos_end = s.find(']]', s_pos_start) if s_pos_start > -1 else -1
+        return s
 
     def parse_callproc(self, sql):
         upper_sql = sql.upper()
