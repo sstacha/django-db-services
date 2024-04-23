@@ -1,5 +1,5 @@
 # FROM python:3.8.3-buster
-FROM python:3.10.1-buster
+FROM python:3.10.11-buster
 
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
@@ -30,7 +30,8 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # NOTE: at this point should be starred and show arch's we build for
 
 # BUILD (each time):
-# docker buildx build -t sasonline/django-db-services:p3.10.1d3.2.14b7 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
+# docker buildx build -t sasonline/django-db-services:p3.10.11d3.2.25b2 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
+# OLD: docker buildx build -t sasonline/django-db-services:p3.10.11d3.2.25b1 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
 # NOTE: this should build/build the manifest and push all arches to dockerhub
 
 

@@ -8,3 +8,4 @@ django-cors-headers
 django-tagulous
 ldap3
 django-authgw
+python-ubercode-utils

@@ -14,6 +14,8 @@ import os
 import sys
 import logging
 from ds_app.utils import is_true_value
+from ubercode.utils.environment import Environment
+environment = Environment()
 
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 # default BASE_DIR = PROJECT_DIR
@@ -36,7 +38,7 @@ SECRET_KEY = '+^=p!b51_v^7h!^@11_wwmvhxpj*s^ti)n5(=jouwt230u4j!z'
 print(f'SECRET_KEY: {SECRET_KEY}')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = environment.override_variable("DEBUG", True)
 
 env_hosts = os.environ.get('ALLOWED_HOSTS', '*')
 ALLOWED_HOSTS = [env_hosts]
@@ -340,5 +342,5 @@ LDAP_USER_SEARCH_DN = "ou=OFFICES,dc=spe,dc=org"
 LDAP_USER_SEARCH_QUERY = "(&(objectclass=person)(sAMAccountName={}))"
 LDAP_AUTHENTICATED_GROUPS = ['Everyone']
 
-AUTHENTICATION_BACKENDS = ['authgw.utils.ldap3.LdapBackend', 'django.contrib.auth.backends.ModelBackend']
+AUTHENTICATION_BACKENDS = ['authgw.utils.django.LdapBackend', 'django.contrib.auth.backends.ModelBackend']
 
