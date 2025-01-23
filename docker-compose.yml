@@ -1,16 +1,19 @@
-version: '3.2'
 
 services:
   ds:
     # image: sasonline/django-db-services
-    build: .
+    # build: .
+    image: sasonline/django-db-services:p3.10.11d3.2.25b3
     command: python manage.py runserver 0.0.0.0:8000
 #    command: /home/uweb/.pyenv/versions/uweb/bin/python manage.py runserver 0.0.0.0:8000
 #    command: /home/uweb/.pyenv/versions/uweb/bin/gunicorn --workers 3 --bind 0.0.0.0:8000 docroot.wsgi
     volumes:
+#     -  type: bind
+#        source: .
+#        target: /usr/src/app
      -  type: bind
-        source: .
-        target: /usr/src/app
+        source: ./data
+        target: /usr/src/app/data
     ports:
      - "8000:8000"
     environment:

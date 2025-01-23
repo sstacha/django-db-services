@@ -135,3 +135,6 @@ backup/
 # vscode
 .vscode/
 .idea/
+
+# os
+.DS_Store

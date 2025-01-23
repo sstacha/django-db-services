@@ -6,6 +6,8 @@ django-import-export
 gunicorn
 django-cors-headers
 django-tagulous
-ldap3
 django-authgw
 python-ubercode-utils
+ldap3
+# note: needed for ldap3 -> ntlm since md4 is no longer supported in core libs
+pycryptodome

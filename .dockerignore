@@ -1,6 +1,7 @@
 data/db.sqlite3
 data/db.env
 data/.env
+data/.json
 db.env
 .env
 test.env
