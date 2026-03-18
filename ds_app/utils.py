@@ -345,14 +345,14 @@ def dictfetchall(cursor):
     return rows
 
 
-def dictfetchall_original(cursor):
-    """Return all rows from a cursor as a dict"""
-    # NOTE: this is the original code that does not work with mysql "byte" type!
-    columns = [col[0] for col in cursor.description]
-    return [
-        dict(zip(columns, row))
-        for row in cursor.fetchall()
-    ]
+# def dictfetchall_original(cursor):
+#     """Return all rows from a cursor as a dict"""
+#     # NOTE: this is the original code that does not work with mysql "byte" type!
+#     columns = [col[0] for col in cursor.description]
+#     return [
+#         dict(zip(columns, row))
+#         for row in cursor.fetchall()
+#     ]
 
 
 def namedtuplefetchall(cursor):

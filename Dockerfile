@@ -1,30 +1,41 @@
 # FROM python:3.8.3-buster
 # FROM python:3.10.11-buster
-FROM python:3.12.7-bookworm
+FROM python:3.12.7-bullseye
+# FROM python:3.12.7-bookworm
 
 # this gives Gpg key errors which i think is solveable.  Trying to just use a newer version of mariadb client first
 # also, didn't work because mysql uses a compiled binary for new security we can run or build on arm
 #RUN apt-get update && apt-get install -y lsb-release inetutils-tools vim lynx curl
 #RUN wget https://dev.mysql.com/get/mysql-apt-config_0.8.33-1_all.deb
 #RUN DEBIAN_FRONTEND=noninteractive dpkg -i mysql-apt-config_0.8.33-1_all.deb
-#RUN apt-get update
+# RUN apt-get update
 #RUN apt install -y mysql-client
+ENV PYTHONUNBUFFERED=1
+
+# RUN apt-get update && apt-get install -y debian-archive-keyring && apt-get clean
+
+# RUN apt-get clean && apt-get update && apt-get install -y --no-install-recommends wget vim lynx curl
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends \
+    && ACCEPT_EULA=Y apt-get install -y --no-install-recommends \
         postgresql-client default-libmysqlclient-dev libldap2-dev libsasl2-dev libssl-dev \
         wget vim lynx curl
+#        build-essential libffi-dev python3-dev g++
+
+#RUN apt-get update \
+#    && apt-get install -y --no-install-recommends \
+#        postgresql-client default-libmysqlclient-dev libldap2-dev libsasl2-dev libssl-dev \
+#        wget vim lynx curl
 #    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /usr/src/app
 COPY requirements.txt ./
+
 # COPY entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 # RUN ln -s /usr/local/bin/docker-entrypoint.sh / # backwards compat
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install --upgrade -r requirements.txt
 COPY . .
 
-# adding 5000 to debug with runserver when needed
-EXPOSE 5000
 EXPOSE 8000
 # CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # ENTRYPOINT ["docker-entrypoint.sh"]
@@ -37,9 +48,11 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 # docker buildx inspect --bootstrap
 # docker buildx ls
 # NOTE: at this point should be starred and show arch's we build for
+# NOTE: needed to run docker builder prune to clean up old builds
 
 # BUILD (each time):
-# docker buildx build -t sasonline/django-db-services:p3.12.7d3.2.25b3 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
+# docker buildx build -t sasonline/django-db-services:p3.12.7d3.2.25b27 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
+# docker buildx build -t sasonline/django-db-services:p3.12.7d6.0.2b5 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
 # OLD: docker buildx build -t sasonline/django-db-services:p3.10.11d3.2.25b1 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
 # NOTE: this should build/build the manifest and push all arches to dockerhub
 

@@ -1,4 +1,4 @@
-# NOTE: fix issue where dockerbizdev doesn't work >= 4.0
+# NOTE: backing down < 4 because of database restrictions I am connecting to (enterprise_data) is an old database
 Django<4
 requests
 mysqlclient

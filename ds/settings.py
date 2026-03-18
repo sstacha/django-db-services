@@ -12,11 +12,24 @@ https://docs.djangoproject.com/en/3.0/ref/settings/
 
 import os
 import sys
-import logging
-from ds_app.utils import is_true_value
-from ubercode.utils.environment import Environment
-environment = Environment()
+from pathlib import Path
 
+# from ds_app.utils import is_true_value
+from ubercode.utils.convert import is_true, to_str
+from ubercode.utils.environment import Environment, ColorLogger
+from ubercode.utils.urls import DjUrl
+
+settings_log = ColorLogger("docroot.settings", "DEBUG")
+mask_props = Environment.DEFAULT_SECRET_PROPERTIES + ('AUTH_LDAP_BIND_PASSWORD', 'DOCROOTCMS_AUTH_LDAP_BIND_PASSWORD')
+settings_environment = Environment(settings_log, secret_properties=mask_props)
+LOG_IN_COLOR = settings_environment.override_variable("LOG_IN_COLOR", True, data_type="bool")
+settings_log.color_output = LOG_IN_COLOR
+ENVIRONMENT = settings_environment.override_variable("ENVIRONMENT", "LOCAL")
+# SECURITY WARNING: don't run with debug turned on in production!
+DEBUG = settings_environment.override_variable("DEBUG", True, data_type="bool")
+PROJECT_SLUG = settings_environment.override_variable("PROJECT_SLUG", "ds")
+
+# resetting our dirs to match deployment server values; instead of <project>/data ~/data/<project_slug>/
 # Build paths inside the project like this: os.path.join(BASE_DIR, ...)
 # default BASE_DIR = PROJECT_DIR
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -24,32 +37,26 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 APP_DIR = os.path.dirname(os.path.abspath(__file__))
 # PROJECT_DIR is the directory that is the django project (also ds for us)
 # NOTE: for this app the BASE_DIR is the same as PROJECT_DIR
-PROJECT_DIR = os.path.dirname(APP_DIR)
+# PROJECT_DIR = os.path.dirname(APP_DIR)
 # we will go ahead and check in our static files for this app so it doesn't have to be done on the server
-STATIC_DIR = os.path.join(BASE_DIR, 'static')
+# STATIC_DIR = os.path.join(BASE_DIR, 'static')
 # DATA_DIR: is the directory containing our data (ds/content for this app)
-DATA_DIR = os.path.join(BASE_DIR, 'data')
+# DATA_DIR = os.path.join(BASE_DIR, 'data')
+DATA_DIR = Path(settings_environment.override_variable("DATA_DIR", Path.home() / "data" / PROJECT_SLUG))
+MEDIA_ROOT = MEDIA_DIR = Path(settings_environment.override_variable("MEDIA_DIR", DATA_DIR / "media"))
+STATIC_ROOT = STATIC_DIR = Path(settings_environment.override_variable("STATIC_DIR", DATA_DIR / "static"))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/3.0/howto/deployment/checklist/
-
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '+^=p!b51_v^7h!^@11_wwmvhxpj*s^ti)n5(=jouwt230u4j!z'
-print(f'SECRET_KEY: {SECRET_KEY}')
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = environment.override_variable("DEBUG", True)
-
-env_hosts = os.environ.get('ALLOWED_HOSTS', '*')
-ALLOWED_HOSTS = [env_hosts]
-print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
+SECRET_KEY = settings_environment.override_variable("SECRET_KEY", 'django-insecure--rp-p!b51_v^7h!^@11_wwmvhxpj*s^ti)n5(=jouwt230u4j!z')
 
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/1.11/howto/static-files/
 STATIC_URL = '/static/'
 MEDIA_URL = '/media/'
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-STATIC_ROOT = STATIC_DIR
+# MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
+# STATIC_ROOT = STATIC_DIR
 
 # Application definition
 INSTALLED_APPS = [
@@ -83,7 +90,8 @@ ROOT_URLCONF = 'ds.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        # 'DIRS': [os.path.join(BASE_DIR, 'templates')],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -109,15 +117,16 @@ DATABASES = {
         'NAME': os.path.join(DATA_DIR, 'db.sqlite3'),
     },
 }
+# NOTE: changing this to the environment.override_database_urls below
 # try to append any database endpoint connections defined for this environment
 #   NOTE: it is assumed we will place this file on the server for each environment for reading
 #       and mount it into the container
-with open('data/endpoint_databases_dict.txt', 'r') as f:
-    s = f.read()
-    # print(f's: {s}')
-    ENDPOINT_DATABASES = eval(s)
-    if ENDPOINT_DATABASES:
-        DATABASES.update(ENDPOINT_DATABASES)
+# with open('data/endpoint_databases_dict.txt', 'r') as f:
+#     s = f.read()
+#     # print(f's: {s}')
+#     ENDPOINT_DATABASES = eval(s)
+#     if ENDPOINT_DATABASES:
+#         DATABASES.update(ENDPOINT_DATABASES)
 
 # print(f'endpoint databases: {ENDPOINT_DATABASES}')
 # print('')
@@ -162,6 +171,18 @@ def endpoint_override_log_filter(record):
         return not record.skip
     return True
 
+
+# LDAP/AD AUTHENTICATION
+# ----
+# NOTE: using default AD auth (NTLM)
+LDAP_HOST = 'dccolo1.spe.org'
+AD_DOMAIN = 'SPEHQ'
+AD_USER_ID_PREFIX = 'u:'
+LDAP_USER_SEARCH_DN = "ou=OFFICES,dc=spe,dc=org"
+LDAP_USER_SEARCH_QUERY = "(&(objectclass=person)(sAMAccountName={}))"
+LDAP_AUTHENTICATED_GROUPS = ['Everyone']
+
+AUTHENTICATION_BACKENDS = ['authgw.utils.django.LdapBackend', 'django.contrib.auth.backends.ModelBackend']
 
 LOGGING = {
     'version': 1,
@@ -238,25 +259,84 @@ LOGGING = {
 
 # # HTTPS & SECURE cookie settings for django for PCI
 # # NOTE: we don't use but lets set just in case we do in the future
-# SESSION_COOKIE_SECURE = True
-# SESSION_COOKIE_HTTPONLY = True
-# CSRF_COOKIE_SECURE = True
-# CSRF_COOKIE_HTTPONLY = True
+SESSION_COOKIE_SECURE = settings_environment.override_variable("SESSION_COOKIE_SECURE", False, data_type="bool")
+SESSION_COOKIE_HTTPONLY = settings_environment.override_variable("SESSION_COOKIE_HTTPONLY", False, data_type="bool")
+CSRF_COOKIE_SECURE = settings_environment.override_variable("CSRF_COOKIE_SECURE", False, data_type="bool")
+CSRF_COOKIE_HTTPONLY = settings_environment.override_variable("CSRF_COOKIE_HTTPONLY", False, data_type="bool")
+
+this_module = sys.modules[__name__]
+
+# KISS: Keeping it simple; taking out all automated stuff.  Simple, override to what you want in each env.
+# NOTE: since we are passing a string value we need to check for str and convert to list at the end
+# ----------
+# NOTE: default allowed_hosts of [] = ['.localhost', '127.0.0.1', '[::1]'] in current Django versions
+# NOTE: can still use * to bypass any checks but not recommended anymore even for development
+# best practice,  use nothing or etc/hosts value like app.localhost for development and a list for deployment to servers
+ALLOWED_HOSTS = settings_environment.override_variable("ALLOWED_HOSTS", getattr(this_module, 'ALLOWED_HOSTS', []))
+# NOTE: much like cors you only need csrf if cross domain and unsafe methods like POST, PUT, DELETE
+# NOTE: trusted_origins require scheme and need * placeholder; allowed hosts cant have scheme and lead with dot.
+# ex: [https://*.example.com] vs [.example.com]
+CSRF_TRUSTED_ORIGINS = settings_environment.override_variable("CSRF_TRUSTED_ORIGINS", getattr(this_module, 'CSRF_TRUSTED_ORIGINS', []))
+# NOTE: at this point allowed_hosts and trusted_origins should be a comma separated string of values or a list; we will convert below
+# todo: backport this simple change and config to go.spe.org with multiple domains using wildcards
+
+
+# # todo: consider only applying if environment != QA or PROD otherwise empty set
+# ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'dslocal.spe.org']
+# ALLOWED_DOMAINS = list((f'{host}:8000' for host in ALLOWED_HOSTS))
+# DEBUG_ALLOWED_HOSTS = settings_environment.override_variable("DEBUG_ALLOWED_HOSTS", "")
+# if DEBUG_ALLOWED_HOSTS:
+#     ALLOWED_HOSTS += DEBUG_ALLOWED_HOSTS.split(',')
+# CSRF_TRUSTED_ORIGINS = []
+# # sas 05.29.25 - attempting to use an env variable needed by jwilder for config; if found will use
+# jwilder_vhost = settings_environment.override_variable("jwilder_vhost", "").strip()
+# if jwilder_vhost:
+#     ALLOWED_HOSTS += jwilder_vhost.split(',')
+# CSRF_TRUSTED_ORIGINS += (f'http://{host}' for host in ALLOWED_HOSTS)
+# CSRF_TRUSTED_ORIGINS += (f'https://{host}' for host in ALLOWED_HOSTS)
+# for domain in ALLOWED_DOMAINS:
+#     if domain.startswith('.'):
+#         CSRF_TRUSTED_ORIGINS.append(f'http://*{domain}')
+#         CSRF_TRUSTED_ORIGINS.append(f'https://*{domain}')
+#     else:
+#         CSRF_TRUSTED_ORIGINS.append(f'http://{domain}')
+#         CSRF_TRUSTED_ORIGINS.append(f'https://{domain}')
+# settings_log.debug(f"allowed hosts: {ALLOWED_HOSTS}")
+# settings_log.debug(f"allowed domains: {ALLOWED_DOMAINS}")
+# settings_log.debug(f"trusted origins: {CSRF_TRUSTED_ORIGINS}")
+
+# env_hosts = os.environ.get('ALLOWED_HOSTS', '*')
+# ALLOWED_HOSTS = [env_hosts]
+# print(f'ALLOWED_HOSTS: {ALLOWED_HOSTS}')
 
 # Replace any DOCROOTCMS_ prefixed environment variables in settings at startup
 #   NOTE: used for docker/local machine environment variable loading overrides
 # 	NOTE: expect strings not complex items like below
-this_module = sys.modules[__name__]
-for k, v in os.environ.items():
-    if k.startswith("DOCROOTCMS_"):
-        attr_key = k[len("DOCROOTCMS_"):]
-        if attr_key:
-            print(f"env: setting {attr_key} to [{str(v)}]")
-            setattr(this_module, attr_key, v)
 
-# Just in case we read in the DEBUG variable above which is always strings lets convert back to boolean
-if not isinstance(DEBUG, bool):
-    DEBUG = is_true_value(DEBUG)
+env_prefix = "DOCROOTCMS_"
+for k, v in os.environ.items():
+    if k.upper().startswith(env_prefix):
+        attr_key = k[len(env_prefix):].upper()
+        if attr_key:
+            cur_val = getattr(this_module, attr_key, None)
+            new_val = settings_environment.override_variable(attr_key, cur_val, k)
+            setattr(this_module, attr_key, new_val)
+
+# in case we overrode the allowed_host with a comma separated string above we need to split it out again
+if isinstance(ALLOWED_HOSTS, str):
+    ALLOWED_HOSTS = [host.strip() for host in ALLOWED_HOSTS.split(',') if host]
+# in case we overrode the csrf_trusted_origins with a comma separated string above we need to split it out again
+if isinstance(CSRF_TRUSTED_ORIGINS, str):
+    CSRF_TRUSTED_ORIGINS = [origin.strip() for origin in CSRF_TRUSTED_ORIGINS.split(',') if origin]
+
+# log our final values for easy reference and debugging
+settings_log.debug(f"allowed hosts: {ALLOWED_HOSTS}")
+settings_log.debug(f"trusted origins: {CSRF_TRUSTED_ORIGINS}")
+
+# NOTE: now that I fixed the issue with None -> bool string value this should not be an issue
+# # Just in case we read in the DEBUG variable above which is always strings lets convert back to boolean
+# if not isinstance(DEBUG, bool):
+#     DEBUG = is_true(DEBUG)
 
     # EXAMPLE endpoint_databases_dict.txt (place in data directory)
     # {
@@ -332,15 +412,31 @@ SERIALIZATION_MODULES = {
 }
 TAGULOUS_NAME_MAX_LENGTH = 191
 
-# LDAP/AD AUTHENTICATION
-# ----
-# NOTE: using default AD auth (NTLM)
-LDAP_HOST = 'dccolo1.spe.org'
-AD_DOMAIN = 'SPEHQ'
-AD_USER_ID_PREFIX = 'u:'
-LDAP_USER_SEARCH_DN = "ou=OFFICES,dc=spe,dc=org"
-LDAP_USER_SEARCH_QUERY = "(&(objectclass=person)(sAMAccountName={}))"
-LDAP_AUTHENTICATED_GROUPS = ['Everyone']
+DATABASES = settings_environment.override_database_urls(DATABASES)
+DATABASES = settings_environment.override_database_variables(DATABASES)
 
-AUTHENTICATION_BACKENDS = ['authgw.utils.django.LdapBackend', 'django.contrib.auth.backends.ModelBackend']
+# log our databases urls (masked passwords) for easy debugging on startup
+settings_log.debug('DATABASES:')
+for db in DATABASES:
+    djurl = DjUrl().from_dict(DATABASES[db])
+    settings_log.debug(f"[{db}]: {str(djurl)}")
+settings_log.debug('')
 
+# SESSION_COOKIE_SECURE = True
+# SESSION_COOKIE_HTTPONLY = True
+# CSRF_COOKIE_SECURE = True
+# CSRF_COOKIE_HTTPONLY = True
+
+# lets debug some DOCROOT_CMS boolean variables
+# print(f"DEBUG: [{type(DEBUG)}] {str(DEBUG)}")
+# tmp_var = getattr(this_module, 'SESSION_COOKIE_SECURE', None)
+# print(f"SESSION_COOKIE_SECURE: [{type(tmp_var)}] {str(tmp_var)}")
+# tmp_var = getattr(this_module, 'SESSION_COOKIE_HTTPONLY', None)
+# print(f"SESSION_COOKIE_HTTPONLY: [{type(tmp_var)}] {str(tmp_var)}")
+# tmp_var = getattr(this_module, 'CSRF_COOKIE_SECURE', None)
+# print(f"CSRF_COOKIE_SECURE: [{type(tmp_var)}] {str(tmp_var)}")
+# tmp_var = getattr(this_module, 'CSRF_COOKIE_HTTPONLY', None)
+# print(f"CSRF_COOKIE_HTTPONLY: [{type(tmp_var)}] {str(tmp_var)}")
+# tmp_var = getattr(this_module, 'BOOGER2', None)
+# print(f"BOOGER2: [{type(tmp_var)}] {str(tmp_var)}")
+# print("")

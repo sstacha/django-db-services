@@ -1,21 +1,30 @@
 
 services:
   ds:
-    # image: sasonline/django-db-services
+    # image: ds_app
     # build: .
-    image: sasonline/django-db-services:p3.10.11d3.2.25b3
+    image: sasonline/django-db-services:p3.12.7d6.0.2b4
     command: python manage.py runserver 0.0.0.0:8000
 #    command: /home/uweb/.pyenv/versions/uweb/bin/python manage.py runserver 0.0.0.0:8000
 #    command: /home/uweb/.pyenv/versions/uweb/bin/gunicorn --workers 3 --bind 0.0.0.0:8000 docroot.wsgi
     volumes:
-#     -  type: bind
-#        source: .
-#        target: /usr/src/app
      -  type: bind
-        source: ./data
-        target: /usr/src/app/data
+        source: .
+        target: /usr/src/app
+#     -  type: bind
+#        source: ./data
+#        #target: /usr/src/app/data
+#        target: /root/data/ds
+     -  ~/data/ds-internal:/root/data/ds-internal
     ports:
      - "8000:8000"
+    env_file:
+     - ./.env
+     - ${ds_db_env:-~/conf/db.ds-internal.env}
     environment:
+     - PYTHONUNBUFFERED=1
+     - PROJECT_SLUG=ds-internal
      - TEST=Testing
      - DEBUG=True
+     - DOCROOTCMS_TEST=1@2/!\t\n#^()+=!
+       

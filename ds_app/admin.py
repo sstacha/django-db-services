@@ -50,4 +50,4 @@ class EndpointAdmin(ImportExportActionModelAdmin):
         reload_app_urls()
 
     def test_link(self, obj):
-        return format_html(f"<a href='/_ds/{obj.path}'target='_blank' rel='noopener noreferrer'>Test</a>")
+        return format_html("<a href='/_ds/{}'target='_blank' rel='noopener noreferrer'>Test</a>", obj.path)
