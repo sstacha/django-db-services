@@ -176,11 +176,15 @@ def endpoint_override_log_filter(record):
 # ----
 # NOTE: using default AD auth (NTLM)
 LDAP_HOST = 'dccolo1.spe.org'
-AD_DOMAIN = 'SPEHQ'
-AD_USER_ID_PREFIX = 'u:'
+# AD_DOMAIN = 'SPEHQ'
+# AD_USER_ID_PREFIX = 'u:'
 LDAP_USER_SEARCH_DN = "ou=OFFICES,dc=spe,dc=org"
 LDAP_USER_SEARCH_QUERY = "(&(objectclass=person)(sAMAccountName={}))"
 LDAP_AUTHENTICATED_GROUPS = ['Everyone']
+# comment if using NTLM
+LDAP_BIND_DN = 'CN=LDAP BIND,OU=SERVACCTS,OU=USERACCTS,OU=DALLAS,OU=OFFICES,DC=spe,DC=org'
+LDAP_BIND_PASSWORD = ''
+LDAP_AUTHENTICATION = 'LDAP'
 
 AUTHENTICATION_BACKENDS = ['authgw.utils.django.LdapBackend', 'django.contrib.auth.backends.ModelBackend']
 

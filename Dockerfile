@@ -1,7 +1,8 @@
 # FROM python:3.8.3-buster
 # FROM python:3.10.11-buster
-FROM python:3.12.7-bullseye
 # FROM python:3.12.7-bookworm
+# FROM python:3.12.7-bullseye
+FROM python:3.13.14-bookworm
 
 # this gives Gpg key errors which i think is solveable.  Trying to just use a newer version of mariadb client first
 # also, didn't work because mysql uses a compiled binary for new security we can run or build on arm
@@ -52,7 +53,7 @@ CMD ["python", "manage.py", "runserver", "0.0.0.0:8000"]
 
 # BUILD (each time):
 # docker buildx build -t sasonline/django-db-services:p3.12.7d3.2.25b27 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
-# docker buildx build -t sasonline/django-db-services:p3.12.7d6.0.2b5 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
+# docker buildx build -t sasonline/django-db-services:p3.13.14d6.0.7b1 -t sasonline/django-db-services --platform linux/amd64,linux/arm64 --push .
 # OLD: docker buildx build -t sasonline/django-db-services:p3.10.11d3.2.25b1 -t sasonline/django-db-services --platform linux/amd64,linux/arm64,linux/ppc64le,linux/arm/v7 --push .
 # NOTE: this should build/build the manifest and push all arches to dockerhub
 

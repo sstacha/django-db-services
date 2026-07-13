@@ -1,5 +1,5 @@
 # NOTE: backing down < 4 because of database restrictions I am connecting to (enterprise_data) is an old database
-Django<4
+Django
 requests
 mysqlclient
 django-import-export
